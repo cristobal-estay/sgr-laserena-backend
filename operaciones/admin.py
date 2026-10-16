@@ -3,7 +3,7 @@ from django.contrib import admin
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
 from django.utils import timezone
-from .models import Task, Activity, Evidence, Employee, TaskReassignment, Benefit
+from .models import Task, Activity, Evidence, Employee, TaskReassignment, Benefit, Neighbor, Attention
 
 
 def _get_employee(request):
@@ -246,3 +246,38 @@ class BenefitAdmin(admin.ModelAdmin):
         if _is_usuario(request):
             return False
         return super().has_module_permission(request)
+
+
+# ---------- Atención ciudadana: vecinos y atenciones ----------
+class AttentionInline(admin.TabularInline):
+    """Atenciones del vecino, con enlace a cada una (navegación entre entidades)."""
+    model = Attention
+    fields = ('number', 'attention_type', 'status', 'created_at')
+    readonly_fields = ('number', 'attention_type', 'status', 'created_at')
+    extra = 0
+    can_delete = False
+    show_change_link = True
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(Neighbor)
+class NeighborAdmin(admin.ModelAdmin):
+    list_display = ('full_name', 'identifier', 'phone', 'email', 'status')
+    list_filter = ('status',)
+    search_fields = ('full_name', 'identifier', 'email', 'phone')
+    ordering = ('full_name',)
+    readonly_fields = ('created_at', 'updated_at')
+    inlines = [AttentionInline]
+
+
+@admin.register(Attention)
+class AttentionAdmin(admin.ModelAdmin):
+    list_display = ('number', 'neighbor', 'delegation', 'attention_type', 'attention_subtype', 'responsible', 'status', 'created_at')
+    list_filter = ('status', 'delegation', 'attention_type')
+    search_fields = ('number', 'neighbor__full_name', 'neighbor__identifier', 'description', 'responsible__username')
+    list_select_related = ('neighbor', 'delegation', 'attention_type', 'attention_subtype', 'responsible')
+    autocomplete_fields = ('neighbor',)
+    ordering = ('-created_at',)
+    readonly_fields = ('created_at', 'updated_at')

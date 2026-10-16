@@ -30,6 +30,7 @@
         {% endfor %}
       </select>
     </div>
+    <button type="submit" class="btn soft">{% sgr_icon 'search' 18 %}<span>Buscar</span></button>
       <a class="btn-outline" href="{{ search_url }}" id="clearBtn">Limpiar filtros</a>
     {% if can_export %}
     <a class="btn soft js-export" href="{{ export_url }}">{% sgr_icon 'down' 18 %}<span>Exportar a Excel</span></a>

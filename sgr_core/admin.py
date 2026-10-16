@@ -57,6 +57,16 @@ class RoleAdmin(admin.ModelAdmin):
     inlines = [RolePermissionInline]
 
 
+@admin.register(RolePermission)
+class RolePermissionAdmin(admin.ModelAdmin):
+    list_display = ('role', 'module', 'action')
+    list_filter = ('module', 'action', 'role')
+    search_fields = ('role__name', 'role__code', 'module', 'action')
+    list_select_related = ('role',)
+    ordering = ('role__code', 'module', 'action')
+    readonly_fields = ('created_at', 'updated_at')
+
+
 @admin.register(Period)
 class PeriodAdmin(admin.ModelAdmin):
     form = PeriodForm
@@ -82,6 +92,7 @@ class InstitutionalGoalAdmin(admin.ModelAdmin):
 class AchievementAdmin(admin.ModelAdmin):
     list_display = ('goal', 'percentage', 'updated_at')
     list_filter = ('goal__delegation',)
+    search_fields = ('goal__name',)
     list_select_related = ('goal',)
     ordering = ('-updated_at',)
     readonly_fields = ('created_at', 'updated_at')

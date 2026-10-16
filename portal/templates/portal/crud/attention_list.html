@@ -34,6 +34,7 @@
         {% endfor %}
       </select>
     </div>
+    <button type="submit" class="btn soft">{% sgr_icon 'search' 18 %}<span>Buscar</span></button>
       <a class="btn-outline" href="{{ search_url }}" id="clearBtn">Limpiar filtros</a>
     {% if can_export %}
     <a class="btn soft js-export" href="{{ export_url }}">{% sgr_icon 'down' 18 %}<span>Exportar a Excel</span></a>
@@ -75,6 +76,9 @@
             {% if can_edit %}
             <a class="ib e" href="{% url edit_url_name row.pk %}" data-tip="Editar" aria-label="Editar la atención {{ row.pk }}">{% sgr_icon 'pencil' 18 %}</a>
             {% endif %}
+            {% if can_delete %}
+            <button type="button" class="ib d" data-tip="Eliminar" aria-label="Eliminar la atención {{ row.pk }}" data-delete-url="{% url delete_url_name row.pk %}" data-delete-label="Atención">{% sgr_icon 'trash' 18 %}</button>
+            {% endif %}
           </div>
         </td>
       </tr>
@@ -114,6 +118,9 @@
   {% endif %}
 </div>
 {% endif %}
+
+{# Token CSRF para el POST de eliminación disparado por JavaScript #}
+<div id="csrfHolder" hidden>{% csrf_token %}</div>
 {% endblock %}
 {% block scripts %}
 <script src="{% static 'portal/js/crud.js' %}"></script>
