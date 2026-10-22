@@ -51,20 +51,29 @@ def _find_active_user(email):
         return None
 
 
+def _code_ttl_seconds():
+    """Vigencia del código de recuperación en segundos (configurable vía .env)."""
+    return int(getattr(settings, 'PASSWORD_RESET_CODE_TTL', 120))
+
+
 def _send_reset_code(user, email):
     """Crea un código nuevo (invalidando los anteriores) y lo envía por correo.
 
     El código viaja solo dentro del correo; nunca se guarda en claro.
     """
     code = f'{secrets.randbelow(1000000):06d}'
-    expires_at = timezone.now() + timedelta(minutes=CODE_EXPIRY_MINUTES)
+    expires_at = timezone.now() + timedelta(seconds=_code_ttl_seconds())
     PasswordResetCode.create_for_user(user, code, expires_at)
 
     from django.core.mail import send_mail
     subject = 'Código de recuperación de contraseña - Sistema Municipal'
     message = render_to_string(
         'portal/email/password_reset_code.txt',
-        {'code': code, 'minutes': CODE_EXPIRY_MINUTES},
+        {
+            'code': code,
+            'minutes': max(1, round(_code_ttl_seconds() / 60)),
+            'seconds': _code_ttl_seconds(),
+        },
     )
     try:
         send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [email], fail_silently=False)
@@ -76,7 +85,7 @@ def _touch_sent(request):
     """Marca en la sesión el momento de envío/reenvío (contadores del paso 2)."""
     now = timezone.now().timestamp()
     request.session['pr_sent_at'] = now
-    request.session['pr_exp'] = now + CODE_EXPIRY_MINUTES * 60
+    request.session['pr_exp'] = now + _code_ttl_seconds()
 
 
 def _reset_context(request, email):

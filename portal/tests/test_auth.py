@@ -270,6 +270,81 @@ class PasswordRecoveryTests(TestCase):
         self.assertEqual(len(mail.outbox), 2)  # paso 1 + reenvío
         self.assertEqual(PasswordResetCode.objects.filter(user=self.user).count(), 2)
 
+    def test_recovery_nuevo_codigo_invalida_anterior(self):
+        # Códigos deterministas: 123456 en el paso 1 y 654321 en el reenvío.
+        with mock.patch(
+            'portal.views.secrets.randbelow', side_effect=[123456, 654321]
+        ):
+            self._iniciar_flujo()
+            primer_codigo = PasswordResetCode.objects.get(user=self.user)
+            # Simulamos que ya pasaron más de 45 s del último envío real.
+            PasswordResetCode.objects.filter(user=self.user).update(
+                last_sent_at=timezone.now() - timedelta(seconds=46)
+            )
+            resp = self.client.post(reverse('password_reset_resend'))
+
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(resp['Location'], reverse('password_reset_verify'))
+        self.assertEqual(len(mail.outbox), 2)  # paso 1 + reenvío
+        self.assertEqual(PasswordResetCode.objects.filter(user=self.user).count(), 2)
+
+        # El reenvío invalida el código anterior: queda marcado como usado.
+        primer_codigo.refresh_from_db()
+        self.assertIsNotNone(primer_codigo.used_at)
+        self.assertTrue(primer_codigo.is_used())
+        self.assertFalse(primer_codigo.is_valid())
+
+        # Solo el código nuevo sigue vigente para el usuario.
+        vigente = PasswordResetCode.objects.filter(
+            user=self.user, used_at__isnull=True
+        ).first()
+        self.assertIsNotNone(vigente)
+        self.assertNotEqual(vigente.pk, primer_codigo.pk)
+        self.assertTrue(vigente.is_valid())
+
+        # Y el código anterior ya no sirve para verificar: el paso 2 lo rechaza
+        # y la sesión no queda verificada.
+        resp = self.client.post(reverse('password_reset_verify'), {
+            'code_digit': ['1', '2', '3', '4', '5', '6']
+        }, follow=True)
+        self.assertEqual(resp.status_code, 200)
+        mensajes = [str(m) for m in resp.context['messages']]
+        self.assertIn('Código incorrecto. Verifica e inténtalo de nuevo.', mensajes)
+        self.assertFalse(self.client.session.get('pr_verified'))
+
+    @override_settings(PASSWORD_RESET_CODE_TTL=120)
+    def test_recovery_expira_segun_password_reset_code_ttl(self):
+        # El código se crea a través del paso 1, con el TTL definido en settings.
+        resp = self.client.post(reverse('password_reset_request'), {
+            'email': 'admin_demo@ejemplo.cl'
+        })
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(len(mail.outbox), 1)
+        codigo = PasswordResetCode.objects.get(user=self.user)
+        digitos = list(re.search(r'\b\d{6}\b', mail.outbox[0].body).group())
+
+        # La vigencia proviene de PASSWORD_RESET_CODE_TTL: 120 segundos.
+        vigencia = (codigo.expires_at - codigo.created_at).total_seconds()
+        self.assertGreater(vigencia, 110)
+        self.assertLessEqual(vigencia, 120)
+
+        # Simulamos que ya transcurrieron 121 segundos desde su emisión: con
+        # TTL=120 el código quedó vencido hace 1 segundo.
+        PasswordResetCode.objects.filter(user=self.user).update(
+            expires_at=codigo.expires_at - timedelta(seconds=121)
+        )
+        codigo.refresh_from_db()
+        self.assertTrue(codigo.is_expired())
+
+        # /recuperar/verificar/ lo rechaza como vencido.
+        resp = self.client.post(reverse('password_reset_verify'), {
+            'code_digit': digitos
+        }, follow=True)
+        self.assertEqual(resp.status_code, 200)
+        mensajes = [str(m) for m in resp.context['messages']]
+        self.assertIn('El código no es válido o ha vencido. Solicita uno nuevo.', mensajes)
+        self.assertFalse(self.client.session.get('pr_verified'))
+
     def test_recovery_contrasena_debil_rechazada(self):
         session = self.client.session
         session['pr_email'] = 'admin_demo@ejemplo.cl'

@@ -3,6 +3,7 @@
 {% block title %}Atenciones{% endblock %}
 {% block extra_head %}
 <link rel="stylesheet" href="{% static 'portal/css/crud.css' %}">
+<link rel="stylesheet" href="{% static 'portal/css/attention_list.css' %}">
 {% endblock %}
 {% block content %}
 <nav class="crumbs" aria-label="Ruta">Gestión municipal / Atenciones</nav>
@@ -39,8 +40,74 @@
     {% if can_export %}
     <a class="btn soft js-export" href="{{ export_url }}">{% sgr_icon 'down' 18 %}<span>Exportar a Excel</span></a>
     {% endif %}
+
+    <div class="tb-break" aria-hidden="true"></div>
+
+    {# Filtros avanzados: se envían solos al cambiar (attention_list.js) #}
+    <div class="field">
+      <label for="tipo">Tipo de atención</label>
+      <select class="in js-autosubmit" id="tipo" name="tipo">
+        <option value="">Todos</option>
+        {% for option in type_options %}
+        <option value="{{ option.value }}"{% if option.selected %} selected{% endif %}>{{ option.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="subtipo">Sub atención</label>
+      <select class="in js-autosubmit" id="subtipo" name="subtipo">
+        <option value="">Todas</option>
+        {% for option in subtype_options %}
+        <option value="{{ option.value }}"{% if option.selected %} selected{% endif %}>{{ option.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% if show_delegation_filter %}
+    <div class="field">
+      <label for="delegacion">Delegación</label>
+      <select class="in js-autosubmit" id="delegacion" name="delegacion">
+        <option value="">Todas</option>
+        {% for option in delegation_options %}
+        <option value="{{ option.value }}"{% if option.selected %} selected{% endif %}>{{ option.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
+    {% if show_responsible_filter %}
+    <div class="field">
+      <label for="responsable">Responsable</label>
+      <select class="in js-autosubmit" id="responsable" name="responsable">
+        <option value="">Todos</option>
+        {% for option in responsible_options %}
+        <option value="{{ option.value }}"{% if option.selected %} selected{% endif %}>{{ option.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
+    <div class="field field-date">
+      <label for="desde">Desde</label>
+      <input class="in js-autosubmit" id="desde" name="desde" type="date" value="{{ date_from }}">
+    </div>
+    <div class="field field-date">
+      <label for="hasta">Hasta</label>
+      <input class="in js-autosubmit" id="hasta" name="hasta" type="date" value="{{ date_to }}">
+    </div>
+    <div class="field field-size">
+      <label for="por_pagina">Filas por página</label>
+      <select class="in js-autosubmit" id="por_pagina" name="por_pagina">
+        {% for size in page_size_options %}
+        <option value="{{ size }}"{% if size == page_size %} selected{% endif %}>{{ size }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {# El orden elegido en los encabezados se conserva al filtrar #}
+    {% if current_order %}<input type="hidden" name="orden" value="{{ current_order }}">{% endif %}
   </form>
 </section>
+
+{% if date_error %}
+<p class="filter-warning" role="alert">{{ date_error }}</p>
+{% endif %}
 
 {% if rows %}
 <div class="tablewrap">
@@ -48,8 +115,12 @@
     <caption class="sr">Atenciones</caption>
     <thead>
       <tr>
-        {% for column in columns %}
-        <th scope="col">{{ column.header }}</th>
+        {% for header in headers %}
+        <th scope="col"{% if header.sortable %} aria-sort="{{ header.aria_sort }}"{% endif %}>
+          {% if header.sortable %}
+          <a class="sortlink{% if header.current %} is-current{% endif %}" href="{{ header.url }}" title="Ordenar por {{ header.label }}">{{ header.label }}<span class="arr" aria-hidden="true">{% if header.direction == 'desc' %}▼{% else %}▲{% endif %}</span></a>
+          {% else %}{{ header.label }}{% endif %}
+        </th>
         {% endfor %}
         <th scope="col">Acciones</th>
       </tr>
@@ -95,7 +166,11 @@
     <span class="pg" aria-disabled="true">Anterior</span>
     {% endif %}
     {% for link in page_links %}
+    {% if link.ellipsis %}
+    <span class="pg gap" aria-hidden="true">…</span>
+    {% else %}
     <a class="pg" href="{{ link.url }}"{% if link.current %} aria-current="page"{% endif %}>{{ link.number }}</a>
+    {% endif %}
     {% endfor %}
     {% if page_obj.has_next %}
     <a class="pg" href="{{ next_url }}" aria-label="Página siguiente">Siguiente</a>
@@ -124,4 +199,5 @@
 {% endblock %}
 {% block scripts %}
 <script src="{% static 'portal/js/crud.js' %}"></script>
+<script src="{% static 'portal/js/attention_list.js' %}"></script>
 {% endblock %}

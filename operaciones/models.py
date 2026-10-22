@@ -2,6 +2,7 @@ from django.core.exceptions import ValidationError
 from django.db import models, transaction
 from django.contrib.auth.models import User
 from django.utils import timezone
+from portal.validators import validate_attachment_file, validate_image_file
 from sgr_core.models import (
     AttentionSubtype,
     AttentionType,
@@ -48,6 +49,10 @@ class Activity(BaseModel):
 class Evidence(BaseModel):
     activity = models.ForeignKey(Activity, on_delete=models.CASCADE, related_name="evidences", verbose_name="Actividad Respaldada")
     image_url = models.CharField(max_length=255, verbose_name="URL de Imagen/Archivo")
+    file = models.FileField(
+        upload_to="evidencias/%Y/%m/", max_length=255, blank=True, null=True,
+        validators=[validate_attachment_file], verbose_name="Archivo de evidencia (máx. 5 MB)",
+    )
     is_validated = models.BooleanField(default=False, verbose_name="Validado por Jefatura")
 
     class Meta:
@@ -258,6 +263,14 @@ class Attention(BaseModel):
     status = models.CharField(
         max_length=20, choices=AttentionStatus.choices,
         default=AttentionStatus.RECEIVED, verbose_name="Estado",
+    )
+    evidence_image = models.ImageField(
+        upload_to="atenciones/imagenes/%Y/%m/", max_length=255, blank=True, null=True,
+        validators=[validate_image_file], verbose_name="Imagen de evidencia (máx. 2 MB)",
+    )
+    attachment = models.FileField(
+        upload_to="atenciones/adjuntos/%Y/%m/", max_length=255, blank=True, null=True,
+        validators=[validate_attachment_file], verbose_name="Documento de respaldo (máx. 5 MB)",
     )
 
     class Meta:

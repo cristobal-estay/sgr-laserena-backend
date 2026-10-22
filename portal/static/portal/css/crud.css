@@ -116,3 +116,7 @@ fieldset>legend{font-weight:600;margin-bottom:8px;padding:0}
 .nb-results .nb-item:hover,.nb-results .nb-item:focus-visible{background:var(--off-bg)}
 .nb-results .nb-empty{padding:9px 12px;color:var(--muted);font-size:13px}
 
+
+/* ---- Archivos adjuntos de la atencion (Clase 9: MEDIA) ---- */
+.media-box{display:flex;gap:10px;align-items:center;margin-top:8px}
+.media-thumb{width:96px;height:96px;object-fit:cover;border:1px solid var(--line);border-radius:8px;background:#fff}

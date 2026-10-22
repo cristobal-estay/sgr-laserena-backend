@@ -45,6 +45,7 @@ class PasswordResetCode(models.Model):
     @classmethod
     def create_for_user(cls, user, code, expires_at, last_sent_at=None):
         """Crea un nuevo código: invalida los anteriores del usuario."""
+        from django.conf import settings
         from django.utils import timezone
         cls.objects.filter(user=user).update(used_at=timezone.now())
         return cls.objects.create(
@@ -52,6 +53,7 @@ class PasswordResetCode(models.Model):
             code_hash=make_password(code),
             expires_at=expires_at,
             last_sent_at=last_sent_at or timezone.now(),
+            max_attempts=getattr(settings, 'PASSWORD_RESET_MAX_ATTEMPTS', 5),
         )
 
 

@@ -8,7 +8,7 @@
 <nav class="crumbs" aria-label="Ruta">Gestión municipal / <a href="{% url config.module_key %}">{{ config.list_title }}</a> / {{ page_action }}</nav>
 <div class="titlebar"><h1>{{ config.list_title }}: {{ page_action|lower }}</h1></div>
 
-<form class="card fgrid" method="post" novalidate id="crudForm"{% if has_errors %} data-has-errors="1"{% endif %}{% if form.role_scopes_json %} data-role-scopes="{{ form.role_scopes_json }}"{% endif %}>
+<form class="card fgrid" method="post" enctype="multipart/form-data" novalidate id="crudForm"{% if has_errors %} data-has-errors="1"{% endif %}{% if form.role_scopes_json %} data-role-scopes="{{ form.role_scopes_json }}"{% endif %}>
   {% csrf_token %}
   <div id="crudFormErrors" aria-live="polite">
     {% for error in form.non_field_errors %}

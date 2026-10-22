@@ -18,9 +18,9 @@
           {% for action in module.actions %}
           <td>
             <input type="checkbox" name="{{ widget.name }}" value="{{ module.key }}.{{ action.key }}"
-                   aria-label="{{ module.label }}: {{ action.label }}"
-                   {% if action.checked %}checked{% endif %}
-                   {% if widget.disabled %}disabled{% endif %}>
+                    aria-label="{{ module.label }}: {{ action.label }}"
+                    {% if action.checked %}checked{% endif %}
+                    {% if widget.disabled %}disabled{% endif %}>
           </td>
           {% endfor %}
         </tr>

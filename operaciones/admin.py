@@ -28,7 +28,7 @@ def _is_usuario(request):
 class EvidenceInline(admin.TabularInline):
     model = Evidence
     extra = 0
-    fields = ('image_url', 'is_validated', 'created_at')
+    fields = ('image_url', 'file', 'is_validated', 'created_at')
     readonly_fields = ('created_at',)
 
 

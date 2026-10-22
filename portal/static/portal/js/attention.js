@@ -128,3 +128,60 @@
     count();
   }
 })();
+
+/**
+ * Archivos de la atencion (Clase 9): vista previa de la imagen elegida y
+ * aviso inmediato si el archivo supera el peso maximo. Es solo ayuda visual:
+ * el servidor vuelve a validar tamano y formato.
+ */
+(function () {
+  'use strict';
+
+  var MB = 1024 * 1024;
+
+  function warn(text) {
+    if (window.Swal) {
+      Swal.fire({ icon: 'warning', title: 'Archivo no válido', text: text, confirmButtonColor: '#920000' });
+    } else {
+      window.alert(text);
+    }
+  }
+
+  function bind(input, maxMb, extensions, onValid) {
+    if (!input) return;
+    input.addEventListener('change', function () {
+      var file = input.files && input.files[0];
+      if (!file) { onValid(null); return; }
+      var name = file.name.toLowerCase();
+      var okExt = extensions.some(function (ext) { return name.slice(-ext.length) === ext; });
+      if (!okExt) {
+        input.value = '';
+        onValid(null);
+        warn('Formato no permitido. Usa: ' + extensions.join(', ') + '.');
+        return;
+      }
+      if (file.size > maxMb * MB) {
+        input.value = '';
+        onValid(null);
+        warn('El archivo supera el máximo de ' + maxMb + ' MB.');
+        return;
+      }
+      onValid(file);
+    });
+  }
+
+  var preview = document.getElementById('evidencePreview');
+  var previewBox = document.getElementById('evidencePreviewBox');
+  var currentUrl = null;
+
+  bind(document.getElementById('id_evidence_image'), 2, ['.jpg', '.jpeg', '.png', '.webp'], function (file) {
+    if (currentUrl) { URL.revokeObjectURL(currentUrl); currentUrl = null; }
+    if (!preview || !previewBox) return;
+    if (!file) { previewBox.hidden = true; preview.removeAttribute('src'); return; }
+    currentUrl = URL.createObjectURL(file);
+    preview.src = currentUrl;
+    previewBox.hidden = false;
+  });
+
+  bind(document.getElementById('id_attachment'), 5, ['.pdf', '.jpg', '.jpeg', '.png', '.webp'], function () {});
+})();

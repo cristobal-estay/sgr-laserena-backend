@@ -8,7 +8,7 @@
 <nav class="crumbs" aria-label="Ruta">Gestión municipal / <a href="{% url 'attentions' %}">Atenciones</a></nav>
 <div class="titlebar"><h1>{% if is_create %}Ingreso de atención{% elif is_view %}Consulta de atención{% else %}Editar atención{% endif %}</h1></div>
 
-<form class="card fgrid" method="post" novalidate id="crudForm"{% if has_errors %} data-has-errors="1"{% endif %}>
+<form class="card fgrid" method="post" enctype="multipart/form-data" novalidate id="crudForm"{% if has_errors %} data-has-errors="1"{% endif %}>
   {% csrf_token %}
   <div id="crudFormErrors" aria-live="polite">
     {% for error in form.non_field_errors %}
@@ -79,6 +79,43 @@
       <p class="help" id="f_desc_c"></p>
       <div id="id_description-e" aria-live="polite">
         {% for error in form.description.errors %}
+        <div class="err" role="alert">{% sgr_icon 'alert' 14 %}<span>{{ error }}</span></div>
+        {% endfor %}
+      </div>
+    </div>
+
+    {# Imagen de evidencia (opcional, máx. 2 MB) con vista previa #}
+    <div>
+      <label class="fl" for="id_evidence_image">{{ form.evidence_image.label }}</label>
+      {{ form.evidence_image }}
+      <p class="help">Formatos: JPG, PNG o WEBP.</p>
+      {% if form.instance.evidence_image %}
+      <div class="media-box">
+        <a href="{{ form.instance.evidence_image.url }}" target="_blank" rel="noopener"><img class="media-thumb" src="{{ form.instance.evidence_image.url }}" alt="Imagen de evidencia actual"></a>
+        <span class="help">Imagen actual{% if not is_view %}. Si eliges otra, la reemplaza{% endif %}.</span>
+      </div>
+      {% endif %}
+      <div class="media-box" id="evidencePreviewBox" hidden>
+        <img class="media-thumb" id="evidencePreview" alt="Vista previa de la imagen seleccionada">
+        <span class="help">Vista previa (aún no guardada).</span>
+      </div>
+      <div id="id_evidence_image-e" aria-live="polite">
+        {% for error in form.evidence_image.errors %}
+        <div class="err" role="alert">{% sgr_icon 'alert' 14 %}<span>{{ error }}</span></div>
+        {% endfor %}
+      </div>
+    </div>
+
+    {# Documento de respaldo (opcional, máx. 5 MB) #}
+    <div>
+      <label class="fl" for="id_attachment">{{ form.attachment.label }}</label>
+      {{ form.attachment }}
+      <p class="help">Formatos: PDF, JPG, PNG o WEBP.</p>
+      {% if form.instance.attachment %}
+      <p class="help"><a href="{{ form.instance.attachment.url }}" target="_blank" rel="noopener">Ver o descargar el documento actual</a></p>
+      {% endif %}
+      <div id="id_attachment-e" aria-live="polite">
+        {% for error in form.attachment.errors %}
         <div class="err" role="alert">{% sgr_icon 'alert' 14 %}<span>{{ error }}</span></div>
         {% endfor %}
       </div>

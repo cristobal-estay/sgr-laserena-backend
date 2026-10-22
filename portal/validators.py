@@ -5,6 +5,7 @@ de salida siempre es ``12.345.678-5`` (cuerpo con puntos cada tres desde la
 derecha, guion y dígito verificador en mayúscula).
 """
 
+import os
 import re
 
 from django.core.exceptions import ValidationError
@@ -73,3 +74,47 @@ def validate_rut(value):
             code="rut_dv",
         )
     return format_rut(body, dv)
+
+
+# --- Archivos subidos (Clase 9: MEDIA) -------------------------------------
+
+#: Imagenes de evidencia: extensiones permitidas y peso maximo (2 MB).
+IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".webp")
+IMAGE_MAX_MB = 2
+
+#: Documentos de respaldo: PDF o imagen, peso maximo (5 MB).
+ATTACHMENT_EXTENSIONS = (".pdf", ".jpg", ".jpeg", ".png", ".webp")
+ATTACHMENT_MAX_MB = 5
+
+
+def _validate_upload(value, extensions, max_mb):
+    """Valida extension y peso de un archivo recien subido.
+
+    Los archivos que ya estan guardados no se revalidan: asi editar otros
+    campos no falla si el archivo ya no existe en disco (otra maquina, media/
+    limpiada) y no se hace una lectura innecesaria del almacenamiento.
+    """
+    if getattr(value, "_committed", False):
+        return
+    extension = os.path.splitext(value.name or "")[1].lower()
+    if extension not in extensions:
+        permitidas = ", ".join(extensions)
+        raise ValidationError(
+            f"Formato no permitido. Formatos válidos: {permitidas}.",
+            code="archivo_extension",
+        )
+    if value.size > max_mb * 1024 * 1024:
+        raise ValidationError(
+            f"El archivo pesa demasiado. El máximo permitido es {max_mb} MB.",
+            code="archivo_tamano",
+        )
+
+
+def validate_image_file(value):
+    """Imagen de evidencia: .jpg, .jpeg, .png o .webp, hasta 2 MB."""
+    _validate_upload(value, IMAGE_EXTENSIONS, IMAGE_MAX_MB)
+
+
+def validate_attachment_file(value):
+    """Documento de respaldo: .pdf o imagen, hasta 5 MB."""
+    _validate_upload(value, ATTACHMENT_EXTENSIONS, ATTACHMENT_MAX_MB)

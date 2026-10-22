@@ -951,6 +951,7 @@ class AttentionForm(CrudModelForm):
         fields = (
             "neighbor", "delegation", "attention_type",
             "attention_subtype", "description", "status",
+            "evidence_image", "attachment",
         )
         labels = {
             "neighbor": "Vecino o solicitante",
@@ -971,6 +972,12 @@ class AttentionForm(CrudModelForm):
                 },
             ),
             "status": forms.Select(attrs={"class": "in"}),
+            "evidence_image": forms.FileInput(
+                attrs={"class": "in", "accept": ".jpg,.jpeg,.png,.webp"},
+            ),
+            "attachment": forms.FileInput(
+                attrs={"class": "in", "accept": ".pdf,.jpg,.jpeg,.png,.webp"},
+            ),
         }
 
     def __init__(self, *args, request=None, **kwargs):
