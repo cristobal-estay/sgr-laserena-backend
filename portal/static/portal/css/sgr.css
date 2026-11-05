@@ -214,3 +214,38 @@ h2.sec{font-size:18px;margin-top:8px}
   .auth-card{padding:24px;max-width:100%}
   .code-box input{width:36px;height:42px;font-size:18px}
 }
+
+
+/* ==================== Compatibilidad con Bootstrap 5 (Evaluación 3) ====================
+   Bootstrap se carga antes que esta hoja. Algunas clases del diseño institucional
+   tienen el mismo nombre que componentes de Bootstrap (.btn, .nav, .card, .badge):
+   aquí se fijan los valores propios y las variables --bs-* que Bootstrap usa en
+   sus estados (hover, active, focus, disabled), para que se vean igual que antes. */
+.side .nav{display:block;flex-wrap:nowrap;padding-left:0;margin-bottom:0}
+.btn{
+  line-height:1.2;text-decoration:none;vertical-align:middle;
+  --bs-btn-color:inherit;--bs-btn-bg:transparent;--bs-btn-border-color:transparent;
+  --bs-btn-hover-color:inherit;--bs-btn-hover-bg:transparent;--bs-btn-hover-border-color:transparent;
+  --bs-btn-active-color:inherit;--bs-btn-active-bg:transparent;--bs-btn-active-border-color:transparent;
+  --bs-btn-disabled-color:inherit;--bs-btn-disabled-bg:transparent;--bs-btn-disabled-border-color:transparent;
+  --bs-btn-focus-box-shadow:0 0 0 .2rem rgba(146,0,0,.25);
+}
+.btn.primary{
+  --bs-btn-color:#fff;--bs-btn-bg:var(--muni);
+  --bs-btn-hover-color:#fff;--bs-btn-hover-bg:var(--muni-dark);
+  --bs-btn-active-color:#fff;--bs-btn-active-bg:var(--muni-dark);
+  --bs-btn-disabled-color:#fff;--bs-btn-disabled-bg:var(--muni);
+}
+.btn.soft{
+  --bs-btn-color:var(--muni);--bs-btn-bg:var(--muni-tint);
+  --bs-btn-hover-color:var(--muni);--bs-btn-hover-bg:#f6d6d6;
+  --bs-btn-active-color:var(--muni);--bs-btn-active-bg:#f6d6d6;
+  --bs-btn-disabled-color:var(--muni);--bs-btn-disabled-bg:var(--muni-tint);
+}
+.btn.ghost{
+  --bs-btn-color:var(--muted);--bs-btn-bg:#fff;--bs-btn-border-color:var(--line);
+  --bs-btn-hover-color:var(--muted);--bs-btn-hover-bg:var(--off-bg);--bs-btn-hover-border-color:var(--line);
+  --bs-btn-active-color:var(--muted);--bs-btn-active-bg:var(--off-bg);--bs-btn-active-border-color:var(--line);
+  --bs-btn-disabled-color:var(--muted);--bs-btn-disabled-bg:#fff;--bs-btn-disabled-border-color:var(--line);
+}
+.btn.ghost{border:1px solid var(--line)}

@@ -1,0 +1,18 @@
+{% load sgr_icons %}<div class="row g-3">
+  {% for item in modules %}
+  <div class="col-md-6 col-xl-4">
+    <a class="card mod h-100 border shadow-sm" href="{% url item.url_name %}">
+      <div class="card-body d-flex gap-3">
+        <span class="ico">{% sgr_icon item.icon 18 %}</span>
+        <div>
+          <div class="fw-semibold">{{ item.label }}{% if item.count is not None %} <span class="badge rounded-pill text-bg-light border ms-1">{{ item.count }}</span>{% endif %}</div>
+          <div class="small text-body-secondary">{{ item.description }}</div>
+          <div class="small mt-1">Puedes: {{ item.actions|join:", "|lower }}.</div>
+        </div>
+      </div>
+    </a>
+  </div>
+  {% empty %}
+  <div class="col-12"><p class="text-body-secondary small mb-0">Tu perfil no tiene módulos en esta sección.</p></div>
+  {% endfor %}
+</div>

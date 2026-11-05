@@ -1,0 +1,62 @@
+{% load sgr_icons %}
+{# Dashboard Supervisor: mantenedores y transacciones autorizadas e información operacional. #}
+<div class="row g-3 mb-4">
+  {% include 'portal/dashboard/_kpi.html' with label="Atenciones registradas" value=summary.total icon="clip" %}
+  {% include 'portal/dashboard/_kpi.html' with label="Atenciones en gestión" value=summary.in_progress icon="calendar" %}
+  {% include 'portal/dashboard/_kpi.html' with label="Atenciones resueltas" value=summary.resolved icon="check" %}
+  {% include 'portal/dashboard/_kpi.html' with label="Usuarios de tu equipo" value=team_count icon="users" %}
+</div>
+
+<div class="d-flex flex-wrap gap-2 mb-4">
+  {% if can_create_attention %}<a class="btn primary" href="{% url 'attentions_new' %}">{% sgr_icon 'plus' 18 %}<span>Ingresar atención</span></a>{% endif %}
+  {% if can_manage_users %}<a class="btn soft" href="{% url 'users_new' %}">{% sgr_icon 'users' 18 %}<span>Nuevo usuario de mi equipo</span></a>{% endif %}
+</div>
+
+<h2 class="h5 mb-3">Información operacional</h2>
+<div class="row g-3 mb-4">
+  <div class="col-lg-4">{% include 'portal/dashboard/_status.html' %}</div>
+  <div class="col-lg-4">
+    <div class="card h-100 border-0 shadow-sm">
+      <div class="card-body">
+        <h2 class="card-title mb-3">Tipos más solicitados</h2>
+        {% for row in by_type %}
+        <div class="mb-3">
+          <div class="d-flex justify-content-between small"><span>{{ row.attention_type__name }}</span><span class="fw-semibold">{{ row.total }}</span></div>
+          <div class="progress" role="progressbar" aria-label="{{ row.attention_type__name }}" aria-valuenow="{{ row.pct }}" aria-valuemin="0" aria-valuemax="100"><div class="progress-bar bg-muni" style="width: {{ row.pct }}%"></div></div>
+        </div>
+        {% empty %}
+        <p class="text-body-secondary small mb-0">Sin atenciones en tu alcance.</p>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card h-100 border-0 shadow-sm">
+      <div class="card-body">
+        <h2 class="card-title mb-3">Carga por funcionario</h2>
+        <table class="table table-sm align-middle mb-0">
+          <thead><tr><th scope="col">Responsable</th><th scope="col" class="text-end">Total</th><th scope="col" class="text-end">En gestión</th></tr></thead>
+          <tbody>
+            {% for row in by_responsible %}
+            <tr><td>{{ row.name }}</td><td class="text-end">{{ row.total }}</td><td class="text-end">{{ row.in_progress }}</td></tr>
+            {% empty %}
+            <tr><td colspan="3" class="text-body-secondary small">Sin datos.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-12">{% include 'portal/dashboard/_recent.html' with recent_title="Últimas atenciones de tus delegaciones" %}</div>
+</div>
+
+<h2 class="h5 mb-3">Mantenedores autorizados</h2>
+{% include 'portal/dashboard/_modules.html' with modules=maintainer_cards %}
+
+<h2 class="h5 mt-4 mb-3">Transacciones autorizadas</h2>
+{% include 'portal/dashboard/_modules.html' with modules=transaction_cards %}
+
+{% if other_cards %}
+<h2 class="h5 mt-4 mb-3">Otros módulos</h2>
+{% include 'portal/dashboard/_modules.html' with modules=other_cards %}
+{% endif %}

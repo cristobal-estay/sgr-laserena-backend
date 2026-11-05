@@ -1,26 +1,54 @@
 {% extends 'portal/base.html' %}
 {% load sgr_icons %}
-{% block title %}Inicio{% endblock %}
+{% block title %}{{ profile_title }}{% endblock %}
+{% block extra_head %}
+<style>
+  /* Dashboards (Evaluación 3): Bootstrap 5 con el color institucional. */
+  .dash{--bs-primary:#920000;--bs-primary-rgb:146,0,0;--bs-link-color:#920000;--bs-link-hover-color:#6f0000}
+  .dash .kpi .ico{width:42px;height:42px;border-radius:10px;display:grid;place-items:center;background:#fbeaea;color:#920000;flex:none}
+  .dash .kpi .num{font-size:1.9rem;font-weight:700;line-height:1.1}
+  .dash .card-title{font-size:1rem;font-weight:700}
+  .dash .mod{color:inherit;text-decoration:none}
+  .dash .mod:hover{border-color:#920000!important;background:#fffafa}
+  .dash .mod .ico{width:36px;height:36px;border-radius:8px;display:grid;place-items:center;background:#fbeaea;color:#920000;flex:none}
+  .dash .progress{height:.6rem}
+  .dash .bg-muni{background:#920000!important}
+  .dash .chip-dot{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:middle}
+  .dash .lock{color:#6b7280}
+</style>
+{% endblock %}
 {% block content %}
+<div class="dash">
 <nav class="crumbs" aria-label="Ruta">Gestión municipal / Inicio</nav>
-<div class="titlebar"><h1>Hola, {{ first_name }}</h1></div>
-<p>{{ context_text }} Tu perfil es <strong>{{ sgr_role.name }}</strong> ({{ scope_text }}).</p>
-<div class="stats">
-  <div class="stat"><strong>{{ stat_registered }}</strong><span>Atenciones registradas</span></div>
-  <div class="stat"><strong>{{ stat_in_progress }}</strong><span>Atenciones en gestión</span></div>
-  <div class="stat"><strong>{{ stat_third_value }}</strong><span>{{ stat_third_label }}</span></div>
+
+{# Encabezado común: perfil, grupo de Django y alcance #}
+<div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-3">
+  <div>
+    <span class="badge rounded-pill text-bg-primary mb-2">{{ profile_title }}</span>
+    <h1 class="h3 mb-1">Hola, {{ first_name }}</h1>
+    <p class="text-body-secondary mb-0">{{ context_text }} Tu perfil es <strong>{{ sgr_role.name }}</strong> ({{ scope_text }}) · {{ profile_level }}.</p>
+  </div>
+  <div class="card border-0 shadow-sm">
+    <div class="card-body py-2 px-3 small">
+      <div class="text-body-secondary">Grupo de Django</div>
+      <div class="fw-semibold">{% for group in user_groups %}{{ group }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}</div>
+      <div class="text-body-secondary">Permisos: <strong>{{ django_perm_count }}</strong></div>
+    </div>
+  </div>
 </div>
-<h2 class="sec">Accesos de tu perfil</h2>
-<div class="mgrid">
-  {% for item in cards %}
-  <a class="mcard" href="{% url item.url_name %}">
-    <span class="mi">{% sgr_icon item.icon 20 %}</span>
-    <span class="mt"><b>{{ item.label }}</b><span>{{ item.description }}</span><br><span>Puedes: {{ item.actions }}.</span></span>
-  </a>
-  {% endfor %}
-</div>
-{% if hidden_labels %}
-<h2 class="sec" style="margin-top:26px">Lo que tu perfil no incluye</h2>
-<p class="subtle" style="margin-top:6px;max-width:70ch">{{ hidden_labels }}. No aparecen en tu menú y el servidor también rechaza esas direcciones si se escriben a mano.</p>
+
+{% if profile == 'admin' %}
+  {% include 'portal/dashboard/admin.html' %}
+{% elif profile == 'supervisor' %}
+  {% include 'portal/dashboard/supervisor.html' %}
+{% else %}
+  {% include 'portal/dashboard/administrativo.html' %}
 {% endif %}
+
+{% if hidden_labels and profile != 'admin' %}
+<div class="alert alert-light border mt-4 mb-0 small" role="note">
+  <strong>Lo que tu perfil no incluye:</strong> {{ hidden_labels }}. No aparecen en tu menú y el servidor también rechaza esas direcciones si se escriben a mano.
+</div>
+{% endif %}
+</div>
 {% endblock %}

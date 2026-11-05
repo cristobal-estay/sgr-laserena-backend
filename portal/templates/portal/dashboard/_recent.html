@@ -1,0 +1,29 @@
+<div class="card h-100 border-0 shadow-sm">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <h2 class="card-title mb-0">{{ recent_title|default:"Últimas atenciones" }}</h2>
+      <a class="small" href="{% url 'attentions' %}">Ver todas</a>
+    </div>
+    {% if recent_attentions %}
+    <div class="table-responsive">
+      <table class="table table-sm table-hover align-middle mb-0">
+        <thead><tr><th scope="col">N°</th><th scope="col">Fecha</th><th scope="col">Solicitante</th><th scope="col">Tipo</th><th scope="col">Delegación</th><th scope="col">Estado</th></tr></thead>
+        <tbody>
+          {% for item in recent_attentions %}
+          <tr>
+            <td><a href="{% url 'attentions_detail' item.pk %}">{{ item.number }}</a></td>
+            <td class="text-nowrap">{{ item.created_at_display }}</td>
+            <td>{{ item.solicitante_name }}</td>
+            <td>{{ item.type_name }}</td>
+            <td class="text-nowrap">{{ item.delegation.code }}</td>
+            <td><span class="badge rounded-pill {% if item.status == 'resolved' %}text-bg-success{% elif item.status == 'in_progress' %}text-bg-warning{% else %}text-bg-info{% endif %}">{{ item.status_display }}</span></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-body-secondary small mb-0">Aún no hay atenciones en tu alcance.</p>
+    {% endif %}
+  </div>
+</div>

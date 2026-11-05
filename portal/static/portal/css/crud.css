@@ -4,13 +4,13 @@
    ============================================================ */
 
 /* ---- Tarjeta ---- */
-.card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:24px}
+.card{display:block;background:#fff;border:1px solid var(--line);border-radius:10px;padding:24px}
 
 /* ---- Barra de búsqueda y filtros: UN SOLO flex en la tarjeta ---- */
 /* La tarjeta .toolbar es el único contenedor flex (reglas de la referencia):
    relleno 16px 18px, separación 14px, alineación inferior, margen 16px.
    El form usa display:contents para no crear un segundo contenedor. */
-.toolbar{display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap;padding:16px 18px;margin-bottom:16px}
+.toolbar{display:flex;flex-direction:row;gap:14px;align-items:flex-end;flex-wrap:wrap;padding:16px 18px;margin-bottom:16px}
 #toolbarForm{display:contents}
 .toolbar .grow{flex:1;min-width:240px;display:flex;flex-direction:column;min-width:0}
 .toolbar .statebox{display:flex;flex-direction:column}

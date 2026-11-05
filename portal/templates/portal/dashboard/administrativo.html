@@ -1,0 +1,48 @@
+{% load sgr_icons %}
+{# Dashboard Administrativo: solo las funcionalidades asignadas y sin operaciones críticas. #}
+<div class="row g-3 mb-4">
+  {% include 'portal/dashboard/_kpi.html' with label="Mis atenciones registradas" value=summary.total icon="clip" %}
+  {% include 'portal/dashboard/_kpi.html' with label="Ingresadas hoy" value=today_count icon="calendar" %}
+  {% include 'portal/dashboard/_kpi.html' with label="En gestión" value=summary.in_progress icon="info" %}
+  {% include 'portal/dashboard/_kpi.html' with label="Atenciones resueltas" value=summary.resolved icon="check" %}
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-lg-5">
+    <div class="card h-100 border-0 shadow-sm">
+      <div class="card-body">
+        <h2 class="card-title">Funcionalidades asignadas</h2>
+        <p class="small text-body-secondary">Tu perfil trabaja con <strong>Atenciones</strong> y solo ve las que tú ingresaste.</p>
+        <div class="d-flex flex-wrap gap-2 mb-3">
+          {% for action in allowed_actions %}<span class="badge rounded-pill text-bg-success">{% sgr_icon 'check' 12 %} {{ action }}</span>{% endfor %}
+        </div>
+        {% if can_create_attention %}
+        <a class="btn primary block" href="{% url 'attentions_new' %}">{% sgr_icon 'plus' 18 %}<span>Ingresar atención</span></a>
+        {% endif %}
+        <a class="btn ghost block mt-2" href="{% url 'attentions' %}">{% sgr_icon 'eye' 18 %}<span>Ver mis atenciones</span></a>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-7">
+    <div class="card h-100 border-0 shadow-sm">
+      <div class="card-body">
+        <h2 class="card-title">Operaciones restringidas</h2>
+        <p class="small text-body-secondary">Por seguridad, estas operaciones críticas no están disponibles para tu perfil. El servidor las rechaza aunque se intente entrar por la dirección.</p>
+        <ul class="list-group list-group-flush small">
+          {% for action in restricted_actions %}
+          <li class="list-group-item px-0"><span class="lock">{% sgr_icon 'lock' 14 %}</span> {{ action }} atenciones</li>
+          {% endfor %}
+          {% if restricted_modules %}
+          <li class="list-group-item px-0"><span class="lock">{% sgr_icon 'lock' 14 %}</span> Mantenedores: {{ restricted_modules|join:", " }}</li>
+          {% endif %}
+          <li class="list-group-item px-0"><span class="lock">{% sgr_icon 'lock' 14 %}</span> Gestión de usuarios, roles y permisos</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-8">{% include 'portal/dashboard/_recent.html' with recent_title="Mis últimas atenciones" %}</div>
+  <div class="col-lg-4">{% include 'portal/dashboard/_status.html' %}</div>
+</div>

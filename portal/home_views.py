@@ -10,6 +10,7 @@ from sgr_core.roles import ACTIONS
 
 from . import access
 from .access import ModulePermissionMixin
+from .dashboards import build_dashboard
 from .modules import MODULE_DESCRIPTIONS, MODULE_ICONS, MODULE_LABELS, MODULE_ORDER, MODULE_URL_NAMES
 
 #: Etiquetas ES de las acciones (para "Puedes: ..." del Inicio).
@@ -38,7 +39,11 @@ def attention_queryset_for(user, active):
 
 
 class HomeView(LoginRequiredMixin, TemplateView):
-    """Inicio: 3 cifras + accesos del perfil (sin CRUD, Partes 4 a 7)."""
+    """Inicio = dashboard del perfil (Administrador, Supervisor o Administrativo).
+
+    Ver ``portal.dashboards``: cada perfil ve cifras, accesos y listados
+    distintos, siempre dentro de su alcance y de sus permisos de Django.
+    """
 
     template_name = "portal/home.html"
 
@@ -98,6 +103,7 @@ class HomeView(LoginRequiredMixin, TemplateView):
             "cards": cards,
             "hidden_labels": ", ".join(hidden),
         })
+        context.update(build_dashboard(self.request, attentions))
         return context
 
 

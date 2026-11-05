@@ -1,0 +1,70 @@
+{% load sgr_icons %}
+{% comment %}Dashboard Administrador: todos los mantenedores, todas las transacciones, gestión de usuarios y visualización global del sistema.{% endcomment %}
+<div class="row g-3 mb-4">
+  {% for kpi in global_kpis %}{% include 'portal/dashboard/_kpi.html' with label=kpi.label value=kpi.value icon=kpi.icon %}{% endfor %}
+</div>
+
+<div class="d-flex flex-wrap gap-2 mb-4">
+  {% if can_create_attention %}<a class="btn primary" href="{% url 'attentions_new' %}">{% sgr_icon 'plus' 18 %}<span>Ingresar atención</span></a>{% endif %}
+  {% if can_manage_users %}<a class="btn soft" href="{% url 'users_new' %}">{% sgr_icon 'users' 18 %}<span>Nuevo usuario</span></a>{% endif %}
+  {% if can_view_roles %}<a class="btn ghost" href="{% url 'roles' %}">{% sgr_icon 'shield' 18 %}<span>Roles, grupos y permisos</span></a>{% endif %}
+</div>
+
+<h2 class="h5 mb-3">Mantenedores</h2>
+{% include 'portal/dashboard/_modules.html' with modules=maintainer_cards %}
+
+<h2 class="h5 mt-4 mb-3">Transacciones</h2>
+{% include 'portal/dashboard/_modules.html' with modules=transaction_cards %}
+
+<h2 class="h5 mt-4 mb-3">Visualización global</h2>
+<div class="row g-3">
+  <div class="col-lg-5">{% include 'portal/dashboard/_status.html' %}</div>
+  <div class="col-lg-7">
+    <div class="card h-100 border-0 shadow-sm">
+      <div class="card-body">
+        <h2 class="card-title mb-3">Atenciones por delegación</h2>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead><tr><th scope="col">Delegación</th><th scope="col" class="text-end">Total</th><th scope="col" class="text-end">En gestión</th><th scope="col" class="text-end">Resueltas</th><th scope="col" style="width:30%">Avance</th></tr></thead>
+            <tbody>
+              {% for row in by_delegation %}
+              <tr>
+                <td><span class="chip-dot" style="background:{{ row.delegation__color|default:'#920000' }}"></span>{{ row.delegation__code }} · {{ row.delegation__name }}</td>
+                <td class="text-end">{{ row.total }}</td>
+                <td class="text-end">{{ row.in_progress }}</td>
+                <td class="text-end">{{ row.resolved }}</td>
+                <td><div class="progress" role="progressbar" aria-label="Resueltas {{ row.delegation__code }}" aria-valuenow="{{ row.resolved_pct }}" aria-valuemin="0" aria-valuemax="100"><div class="progress-bar bg-muni" style="width: {{ row.resolved_pct }}%"></div></div></td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="5" class="text-body-secondary small">Sin atenciones registradas.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-7">{% include 'portal/dashboard/_recent.html' %}</div>
+  <div class="col-lg-5">
+    <div class="card h-100 border-0 shadow-sm">
+      <div class="card-body">
+        <h2 class="card-title mb-3">Actividad reciente (auditoría)</h2>
+        <ul class="list-group list-group-flush small">
+          {% for log in recent_audit %}
+          <li class="list-group-item px-0 d-flex justify-content-between gap-2">
+            <span><strong>{{ log.user.username|default:"anónimo" }}</strong> · {{ log.action }}{% if log.module %} · {{ log.module }}{% endif %}<br><span class="text-body-secondary">{{ log.object_repr|truncatechars:48 }}</span></span>
+            <span class="text-body-secondary text-nowrap">{{ log.created_at|date:"d-m H:i" }}</span>
+          </li>
+          {% empty %}
+          <li class="list-group-item px-0 text-body-secondary">Sin actividad registrada.</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if other_cards %}
+<h2 class="h5 mt-4 mb-3">Otros módulos</h2>
+{% include 'portal/dashboard/_modules.html' with modules=other_cards %}
+{% endif %}

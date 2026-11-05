@@ -6,6 +6,8 @@
 <meta name="theme-color" content="#920000">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23920000'/%3E%3Cpath d='M9 25V8h10v17M19 13h4v12M12 12h4M12 16h4M12 20h4' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <title>{% block title %}Inicio{% endblock %} – Sistema Municipal</title>
+{% comment %}Bootstrap 5.3.3 (Evaluación 3), incluido en static/portal/vendor: grilla, tarjetas, tablas y utilidades. Se carga ANTES de sgr.css para que el diseño institucional mantenga la prioridad.{% endcomment %}
+<link rel="stylesheet" href="{% static 'portal/vendor/bootstrap/bootstrap.min.css' %}">
 <link rel="stylesheet" href="{% static 'portal/css/sgr.css' %}">
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.10.1/dist/sweetalert2.all.min.js"></script>
 {% block extra_head %}{% endblock %}
@@ -94,5 +96,6 @@
   });
 </script>
 {% block scripts %}{% endblock %}
+<script src="{% static 'portal/vendor/bootstrap/bootstrap.bundle.min.js' %}"></script>
 </body>
 </html>
