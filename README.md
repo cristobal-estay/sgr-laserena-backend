@@ -385,7 +385,34 @@ sudo journalctl -u sgr -n 50 --no-pager
 
 ---
 
-## Despliegue en producción (EC2)
+## Despliegue en AWS Academy (EC2) con un solo script
+
+Guía paso a paso: [`docs/despliegue_aws_academy.md`](docs/despliegue_aws_academy.md)
+(crear la instancia Ubuntu 24.04 en el Learner Lab, grupo de seguridad, conexión y
+problemas frecuentes). En la instancia:
+
+```bash
+git clone https://github.com/cristobal-estay/sgr-laserena-backend.git
+cd sgr-laserena-backend
+bash deploy/instalar_ec2.sh
+```
+
+El script `deploy/instalar_ec2.sh` instala y configura **MariaDB** (base
+`sgr_laserena`, utf8mb4), el entorno virtual, el `.env` de producción
+(`DEBUG=False`, clave nueva, IP pública en `ALLOWED_HOSTS`, Gmail), migraciones,
+`collectstatic`, datos demo, el servicio **`sgr`** (Gunicorn) y **Nginx** en el
+puerto 80, y opcionalmente **phpMyAdmin** en `/phpmyadmin/`. Se puede volver a
+ejecutar para actualizar (por ejemplo, después de `git pull` o si cambió la IP).
+
+Para revisar que todo está listo (y enviar un correo de prueba):
+
+```bash
+venv/bin/python manage.py verificar_despliegue --correo tu-correo@gmail.com
+```
+
+Pruebas para la revisión presencial: [`docs/pruebas/guion_revision_eva3.md`](docs/pruebas/guion_revision_eva3.md).
+
+## Despliegue en producción (EC2) manual
 
 > ⚠️ **En producción, `DEBUG` debe ser `False` y `ALLOWED_HOSTS` debe incluir la IP pública real de la instancia** (o su dominio). Nunca despliegues con `DEBUG=True`.
 
