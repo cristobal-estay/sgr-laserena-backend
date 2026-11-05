@@ -4,6 +4,10 @@ Pruebas para hacer frente al profesor, ordenadas según la escala de apreciació
 Cada prueba dice **qué hacer**, **qué debe pasar** y **qué explicar**.
 Ensáyalas antes en tu computador (`python manage.py runserver`) y después en la EC2.
 
+> **Si ensayas en la EC2:** el borrado es lógico, así que el código, el RUT y el correo de lo que
+> creaste (aunque lo hayas eliminado) quedan ocupados. En la revisión usa otros datos: código
+> `DEL08` o `TAT10`, RUT `16.234.578-8`, `17.345.689-1` o `18.456.790-3` y otro correo.
+
 Todos los usuarios demo usan la clave **`Demo2026!`** (se puede entrar con el
 usuario o con el correo).
 
@@ -138,6 +142,7 @@ y usan Bootstrap (grilla, tarjetas, tablas y barras de progreso).
 | 5.4 Listar | Paginación de 5, filtro de estado Activa/Inactiva | La lista cambia |
 | 5.5 Modificar | Editar `DEL07` → cambiar nombre o estado | Se guarda y se ve en la lista |
 | 5.6 Eliminar | Papelera en `DEL07` → confirmar | Desaparece (borrado lógico: en phpMyAdmin queda con `deleted_at`) |
+| 5.6b Reusar el código | Crear otra delegación con código `DEL07` | "Ese código pertenece a un registro eliminado, que se conserva en el historial (borrado lógico)": el código queda reservado |
 | 5.7 Regla | Intentar eliminar `DEL01` | No deja: tiene usuarios y atenciones asociados |
 | 5.8 Exportar | Exportar a Excel | Descarga un .xlsx con lo filtrado |
 
@@ -187,7 +192,7 @@ transacción (`Attention.save` en `operaciones/models.py`).
 
 - GitHub: README, historial de **commits** (uno por etapa de la Evaluación 3) y `.gitignore`
   (el `.env` con las claves nunca se sube).
-- IA: sección 7 del Documento Técnico (prompts, respuestas y cómo se aplicaron).
+- IA: sección 8 del Documento Técnico (prompts, respuestas y cómo se aplicaron).
 
 ---
 

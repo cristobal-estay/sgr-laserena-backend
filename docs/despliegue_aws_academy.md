@@ -5,8 +5,8 @@ con **MariaDB** (base de datos), **Gunicorn + systemd** (aplicación Django),
 **Nginx** (puerto 80) y **phpMyAdmin** (opcional, para ver las tablas).
 
 Todo lo instala el script `deploy/instalar_ec2.sh`. Se probó de punta a punta en
-Ubuntu Server 24.04 LTS con MariaDB 10.11: migraciones, datos demo, las 286
-pruebas, Nginx → Gunicorn, archivos subidos (`/media/`) y phpMyAdmin.
+Ubuntu Server 24.04 LTS con MariaDB 10.11: migraciones, datos demo, todas las
+pruebas automatizadas, Nginx → Gunicorn, archivos subidos (`/media/`) y phpMyAdmin.
 
 > **Base de datos:** en tu computador el proyecto usa **SQLite** (`db.sqlite3`)
 > porque el `.env` local no define `DB_ENGINE`. En la EC2 el script deja

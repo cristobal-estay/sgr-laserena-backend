@@ -23,7 +23,7 @@ Construido con **Django 5.2** sobre **Python 3.11+**.
 | Recuperación de contraseña por correo | Enlace `/recuperar/enlace/<uid>/<token>/` con `default_token_generator` (token seguro, un solo uso, vence en 30 min), nueva contraseña, confirmación y correo de aviso (`portal/views.py`) |
 | Sin Django Admin | `/admin/` eliminado (404) y `django.contrib.admin` fuera de `INSTALLED_APPS` |
 | Dashboard por perfil | `portal/dashboards.py` + `portal/templates/portal/dashboard/` |
-| Bootstrap | Bootstrap 5.3.3 en `portal/static/portal/vendor/bootstrap/`, cargado en `base.html` y `base_auth.html` |
+| Bootstrap | Bootstrap 5.3.3 en `portal/static/portal/vendor/bootstrap/` y SweetAlert2 11.10.1 (alertas y confirmaciones) en `portal/static/portal/vendor/sweetalert2/`, cargados en `base.html` y `base_auth.html`: la interfaz no depende de ningún CDN |
 | 2 mantenedores CRUD | 6 mantenedores (crear, buscar, listar, modificar, eliminar y exportar) |
 | 1 transacción | **Atenciones**: relaciona Vecino, Delegación, Tipo, Sub atención y Funcionario responsable, con validaciones y persistencia |
 
