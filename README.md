@@ -3,13 +3,29 @@
 Backend del **Sistema de Gestión de Resultados (SGR)** para la Municipalidad de La Serena.
 Construido con **Django 5.2** sobre **Python 3.11+**.
 
-> **Estado:** backend operativo. Incluye acceso y recuperación de contraseña, el panel
-> de administración de Django (`/admin/`) con scoping por delegación, el portal con
-> template común y los 6 mantenedores (Delegaciones, Roles, Usuarios, Ítems y metas,
-> Tipo de Atención y Sub Atención) más el módulo de **Atenciones** (ingreso, listado,
-> consulta, edición y exportación), con 4 roles y autorización validada en el servidor.
-> La suite de pruebas cubre esquema, autorización, autenticación, matriz de permisos,
-> alcance por delegación y las vistas del portal (ver `docs/pruebas/`).
+> **Estado (Evaluación Sumativa 3):** aplicación web completa **sin Django Admin**: toda
+> la gestión se hace desde el portal con Django Templates + Bootstrap 5. Incluye inicio
+> y cierre de sesión, **recuperación de contraseña por enlace con token** enviado por
+> correo (Gmail), **roles ligados a los grupos y permisos de Django**, **dashboards
+> diferenciados por perfil** (Administrador, Supervisor, Administrativo), los 6
+> mantenedores (Delegaciones, Roles, Usuarios, Ítems y metas, Tipo de Atención y Sub
+> Atención) y la transacción de **Atenciones** (ingreso, listado, consulta, edición y
+> exportación). La suite de pruebas cubre esquema, autorización, grupos y permisos,
+> autenticación, recuperación, dashboards y las vistas del portal (ver `docs/pruebas/`).
+
+## Evaluación Sumativa 3: qué se agregó
+
+| Requerimiento de la pauta | Cómo se cumple en el proyecto |
+|---|---|
+| Inicio/cierre de sesión, vistas protegidas | `PortalLoginView` / `PortalLogoutView`; `LoginRequiredMixin` y `ModulePermissionMixin` (403) en todas las vistas |
+| Perfiles con permisos diferenciados | 4 roles del proyecto: **Superadministrador** (perfil Administrador: acceso total), **Coordinador** y **Delegado municipal** (perfil Supervisor: permisos intermedios) y **Funcionario** (perfil Administrativo: permisos mínimos) |
+| Sistema de permisos y grupos de Django | Cada rol tiene su `auth.Group` (`ROL02 · Coordinador`…) y cada casilla de la matriz es un `auth.Permission` (`sgr_core.create_attentions`…). El usuario queda en el grupo de su rol al crearlo o editarlo; el acceso se valida con `user.has_perm` (`sgr_core/groups.py`, `portal/access.py`) |
+| Recuperación de contraseña por correo | Enlace `/recuperar/enlace/<uid>/<token>/` con `default_token_generator` (token seguro, un solo uso, vence en 30 min), nueva contraseña, confirmación y correo de aviso (`portal/views.py`) |
+| Sin Django Admin | `/admin/` eliminado (404) y `django.contrib.admin` fuera de `INSTALLED_APPS` |
+| Dashboard por perfil | `portal/dashboards.py` + `portal/templates/portal/dashboard/` |
+| Bootstrap | Bootstrap 5.3.3 en `portal/static/portal/vendor/bootstrap/`, cargado en `base.html` y `base_auth.html` |
+| 2 mantenedores CRUD | 6 mantenedores (crear, buscar, listar, modificar, eliminar y exportar) |
+| 1 transacción | **Atenciones**: relaciona Vecino, Delegación, Tipo, Sub atención y Funcionario responsable, con validaciones y persistencia |
 
 ---
 
@@ -57,15 +73,23 @@ Construido con **Django 5.2** sobre **Python 3.11+**.
 - `Evidence` (tabla `evidencia`): respaldo de una actividad y su validación de jefatura.
 - `Employee` (tabla `funcionario`): funcionario municipal. Se enlaza con el usuario de Django (`django.contrib.auth.models.User`) mediante `OneToOneField` e incorpora RUT, teléfono y delegación asignada.
 
-### 🔐 Panel de administración
+### 🔐 Seguridad: roles, grupos y permisos de Django
 
-Los 9 modelos están registrados en el admin de Django con `list_select_related` para
-evitar consultas N+1. Además, `TaskAdmin` (`operaciones/admin.py`) aplica *scoping*
-por delegación:
+Desde la Evaluación 3 **no se usa Django Admin**. La seguridad se apoya en el sistema
+de autenticación, permisos y grupos de Django:
 
-- Superusuario: ve todas las tareas.
-- Funcionario con `Employee` asociado: sólo las tareas de su delegación.
-- Usuario sin `Employee`: no ve ninguna.
+- **Grupo por rol:** `Role.group` (`OneToOneField` a `auth.Group`). El grupo se llama
+  `"<código> · <nombre>"`, por ejemplo `ROL04 · Funcionario`.
+- **Permiso por casilla de la matriz:** 11 módulos × 5 acciones = 55 `auth.Permission`
+  con codename `<accion>_<modulo>` (`view_users`, `create_attentions`, `export_items`…).
+  La pantalla **Roles** edita la matriz y las señales (`sgr_core/signals.py`) la copian
+  a los permisos del grupo.
+- **Usuario en el grupo de su rol:** al crear o editar un usuario desde **Usuarios**
+  (`operaciones/signals.py`). Los listados de Roles y Usuarios muestran la columna
+  "Grupo de Django".
+- **Autorización:** `portal/access.py` consulta `user.has_perm(...)` /
+  `user.get_all_permissions()`. El rol aporta además el alcance de datos (todas las
+  delegaciones, autorizadas, su delegación o solo registros propios) y debe estar Activo.
 
 ### 🗃️ Migraciones
 
@@ -82,8 +106,8 @@ por delegación:
 El portal implementa el flujo de acceso real (ya no hay mockup en el repositorio):
 
 - **Autenticación** (`portal/backends.py`): usuario o correo, sin distinguir mayúsculas; bloqueo de 5 intentos fallidos por 10 minutos (`portal/views.py`).
-- **Recuperación de contraseña** en 3 pasos (`recuperar/`, `recuperar/verificar/`, `recuperar/nueva-clave/`) con código de un solo uso de 10 minutos, hasheado y con reenvío limitado a 45 s.
-- **Inicio** (`inicio/`): cifras, accesos por perfil y selector de delegación activa (validado en el servidor).
+- **Recuperación de contraseña por enlace** en 4 pasos: `recuperar/` (correo) → correo con enlace `recuperar/enlace/<uid>/<token>/` (token de `default_token_generator`, un solo uso, vigencia `PASSWORD_RESET_TIMEOUT`) → `recuperar/nueva-clave/` → `recuperar/listo/` + correo de confirmación. Misma respuesta exista o no la cuenta y reenvío limitado a 45 s.
+- **Inicio = dashboard por perfil** (`inicio/`): Administrador (visión global, todos los mantenedores y transacciones, gestión de usuarios, auditoría), Supervisor (información operacional de sus delegaciones y módulos autorizados) y Administrativo (sus funciones y operaciones críticas restringidas). Incluye el selector de delegación activa (validado en el servidor).
 - **Autorización centralizada** (`portal/access.py`): roles por alcance (todo / autorizadas / su delegación / registros propios), resueltos una sola vez por request.
 - **Módulos** (Partes 4 a 7, operativos): Delegaciones, Roles, Usuarios, Ítems y metas,
   Tipo de Atención, Sub Atención y Atenciones. Cada uno con listado, búsqueda, filtro,
@@ -181,7 +205,7 @@ Si defines `DB_NAME` como ruta relativa (por ejemplo `db.sqlite3`), se resuelve 
 python manage.py check             # verifica la configuración
 python manage.py migrate           # crea las tablas en la base de datos
 python manage.py seed_demo         # carga datos demo idempotentes (roles, delegaciones, usuarios, atenciones)
-python manage.py createsuperuser   # (opcional) usuario para el panel admin
+python manage.py createsuperuser   # (opcional) superusuario para entrar al portal
 ```
 
 > `seed_demo` es **idempotente**: se puede volver a ejecutar sin duplicar datos.
@@ -194,7 +218,7 @@ python manage.py createsuperuser   # (opcional) usuario para el panel admin
 python manage.py runserver
 ```
 
-Portal: <http://127.0.0.1:8000/> · Panel de administración: <http://127.0.0.1:8000/admin/>
+Portal: <http://127.0.0.1:8000/> (no hay panel de Django Admin: `/admin/` responde 404).
 
 ### Usuarios demo por rol
 
@@ -211,7 +235,9 @@ Clave de todos: **`Demo2026!`**
 | Funcionario | `funcionario.mar@example.test` | DEL02 | solo atenciones propias |
 | Funcionario (inactivo) | `ignacio.vera@example.test` | DEL03 | cuenta desactivada |
 
-También se crean `admin_demo`, `limitado_demo` y `jefatura_centro` (cuentas del Django Admin).
+También se crean `admin_demo` (superusuario), `limitado_demo` y `jefatura_centro`, cuentas demo históricas de la Evaluación 2 que ahora entran solo al portal.
+
+Perfil del dashboard según el rol: **Superadministrador → Dashboard Administrador**, **Coordinador y Delegado → Dashboard Supervisor**, **Funcionario → Dashboard Administrativo**.
 
 ### Mapa de URLs
 
@@ -221,7 +247,7 @@ También se crean `admin_demo`, `limitado_demo` y `jefatura_centro` (cuentas del
 | `/logout/` | `logout` | autenticado (POST) |
 | `/inicio/` | `home` | autenticado |
 | `/delegacion-activa/` | `switch_delegation` | autenticado (POST) |
-| `/recuperar/`, `/recuperar/verificar/`, `/recuperar/reenviar/`, `/recuperar/nueva-clave/` | `password_reset_*` | público |
+| `/recuperar/`, `/recuperar/enviado/`, `/recuperar/reenviar/`, `/recuperar/enlace/<uid>/<token>/`, `/recuperar/nueva-clave/`, `/recuperar/listo/` | `password_reset_*` | público |
 | `/delegaciones/` (+ `nuevo/`, `<pk>/`, `<pk>/editar/`, `<pk>/eliminar/`, `exportar/`) | `delegations` | superadmin |
 | `/roles/` (mismas subrutas) | `roles` | superadmin |
 | `/usuarios/` (mismas subrutas) | `users` | superadmin, coordinador, delegado |
@@ -229,7 +255,7 @@ También se crean `admin_demo`, `limitado_demo` y `jefatura_centro` (cuentas del
 | `/tipos-atencion/` (mismas subrutas) | `attention_types` | superadmin, coordinador |
 | `/sub-atenciones/` (mismas subrutas) | `attention_subtypes` | superadmin, coordinador |
 | `/atenciones/` (mismas subrutas + `solicitantes/`) | `attentions` | superadmin, coordinador, delegado, funcionario |
-| `/admin/` | — | staff |
+| `/admin/` | — | eliminado (404) |
 
 ### Matriz de permisos por rol
 
@@ -295,24 +321,45 @@ una base real (no se regenera desde este proyecto).
 - Las exportaciones a Excel **nunca** incluyen contraseñas ni hashes.
 - Para producción: `DEBUG=False`, `ALLOWED_HOSTS` con el dominio real, sustituir la clave por defecto de `settings.py`, configurar `STATIC_ROOT` para `collectstatic` y usar MariaDB/MySQL como base de datos.
 
-## Configuración del correo
+## Configuración del correo (Gmail)
 
-El envío del código de recuperación de contraseña usa `django.core.mail` con el
-backend configurado en `.env`. Por defecto está **simulado** (imprime el código
-en la consola del servidor), pensado para desarrollo y pruebas.
+La recuperación de contraseña envía un correo con el **enlace** usando
+`django.core.mail` con el backend configurado en `.env`. Sin configuración, el correo
+se **imprime en la terminal** del servidor (útil para desarrollo). Para la
+demostración se usa **Gmail**:
+
+1. En la cuenta de Google: **Seguridad → Verificación en 2 pasos** (activarla) →
+   **Contraseñas de aplicaciones** → crear una para "SGR". Google entrega una clave
+   de 16 letras.
+2. En el `.env` (local y en la EC2; **nunca se sube a GitHub**):
+
+   ```env
+   EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+   EMAIL_HOST=smtp.gmail.com
+   EMAIL_PORT=587
+   EMAIL_USE_TLS=True
+   EMAIL_HOST_USER=tu-correo@gmail.com
+   EMAIL_HOST_PASSWORD=clave-de-aplicacion-de-16-letras
+   DEFAULT_FROM_EMAIL=SGR La Serena <tu-correo@gmail.com>
+   PASSWORD_RESET_TIMEOUT=1800
+   ```
+
+3. Reiniciar el servidor. El usuario que pide la recuperación debe tener **ese mismo
+   correo real** registrado en su cuenta (Usuarios → Editar → Correo).
 
 | Variable | Descripción |
 |---|---|
-| `EMAIL_BACKEND` | `django.core.mail.backends.console.EmailBackend` (simulado, por defecto) o `django.core.mail.backends.smtp.EmailBackend` (real) |
-| `EMAIL_HOST` / `EMAIL_PORT` | Servidor SMTP y puerto (p. ej. `smtp.gmail.com` / `587`) |
-| `EMAIL_HOST_USER` / `EMAIL_HOST_PASSWORD` | Credenciales SMTP |
-| `EMAIL_USE_TLS` | `True` para TLS |
-| `DEFAULT_FROM_EMAIL` | Remitente de los correos |
+| `EMAIL_BACKEND` | `...console.EmailBackend` (terminal, por defecto) o `...smtp.EmailBackend` (real) |
+| `EMAIL_HOST` / `EMAIL_PORT` / `EMAIL_USE_TLS` | `smtp.gmail.com` / `587` / `True` |
+| `EMAIL_HOST_USER` / `EMAIL_HOST_PASSWORD` | Correo de Gmail y su contraseña de aplicación |
+| `DEFAULT_FROM_EMAIL` | Remitente visible |
+| `PASSWORD_RESET_TIMEOUT` | Vigencia del enlace en segundos (1800 = 30 min) |
+| `SITE_URL` | Opcional: dirección pública para el enlace (si no, se usa la dirección con que se abrió el sitio) |
 
-En modo simulado, el código de 6 dígitos aparece en el log del servicio:
+Si el correo no llega, el error queda en el log del servicio:
 
 ```bash
-sudo journalctl -u sgr -n 50 --no-pager   # busca la línea con el "Código de recuperación"
+sudo journalctl -u sgr -n 50 --no-pager
 ```
 
 ## Estado por módulo (honesto)
@@ -320,8 +367,10 @@ sudo journalctl -u sgr -n 50 --no-pager   # busca la línea con el "Código de r
 | Módulo | Estado |
 |---|---|
 | Autenticación (login, bloqueo de intentos) | Operativo |
-| Recuperación de contraseña (3 pasos) | Operativo (correo **simulado** por consola si no hay SMTP) |
-| Inicio (cifras, accesos, selector de delegación) | Operativo |
+| Recuperación de contraseña por enlace con token (4 pasos) | Operativo (Gmail por SMTP; por consola si no hay SMTP) |
+| Grupos y permisos de Django ligados a los roles | Operativo |
+| Dashboards por perfil (Administrador, Supervisor, Administrativo) | Operativo |
+| Django Admin | Eliminado (Evaluación 3) |
 | Delegaciones | Operativo |
 | Roles | Operativo |
 | Usuarios | Operativo |
@@ -330,7 +379,7 @@ sudo journalctl -u sgr -n 50 --no-pager   # busca la línea con el "Código de r
 | Sub Atención | Operativo |
 | Atenciones (ingreso, listado, consulta, edición, exportación) | Operativo |
 | Matriz de permisos y alcance por delegación | Operativo (validado en servidor) |
-| Envío de correo con SMTP real | Simulado (backend de consola hasta configurar SMTP) |
+| Envío de correo con SMTP real | Operativo al configurar Gmail en `.env` |
 | Pruebas de estrés (Locust) | Operativo / **Ejecutado** (ver `docs/pruebas/pruebas_estres.md`) |
 | Logo y tipografía oficiales | Operativo (paleta granate #920000, tipografía sin serifas y escudo/imagotipo institucional en `base.html` y `base_auth.html`) |
 
@@ -372,3 +421,25 @@ sudo journalctl -u sgr -n 50 --no-pager   # busca la línea con el "Código de r
    ```
 
    El servicio corre `gunicorn config.wsgi:application` para que el proceso siga vivo al cerrar la sesión SSH.
+
+### Actualizar la EC2 con la versión de la Evaluación 3
+
+Con la rama ya unida a `main` (o usando la rama directamente), en la instancia:
+
+```bash
+cd <RUTA_PROYECTO>
+git fetch origin
+git checkout main
+git pull origin main
+source venv/bin/activate
+pip install -r requirements.txt
+python manage.py migrate
+python manage.py collectstatic --noinput
+sudo systemctl restart sgr
+```
+
+Antes de reiniciar, agrega al `.env` de la EC2 las variables de Gmail (sección
+"Configuración del correo") y verifica `ALLOWED_HOSTS` con la IP pública. Para revisar
+que quedó arriba: `sudo systemctl status sgr` y abrir `http://<IP_PUBLICA>/` en el
+navegador.
+

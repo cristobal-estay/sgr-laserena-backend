@@ -42,6 +42,8 @@ erDiagram
         TextField description
         ForeignKey responsible FK
         CharField status
+        FileField evidence_image
+        FileField attachment
     }
     beneficio {
         BigAutoField id PK
@@ -73,6 +75,7 @@ erDiagram
         DateTimeField deleted_at
         ForeignKey activity FK
         CharField image_url
+        FileField file
         BooleanField is_validated
     }
     vecino {
@@ -119,17 +122,6 @@ erDiagram
         TextField detail
         CharField ip
         DateTimeField created_at
-    }
-    portal_password_reset_code {
-        BigAutoField id PK
-        ForeignKey user FK
-        CharField code_hash
-        DateTimeField created_at
-        DateTimeField expires_at
-        PositiveIntegerField attempts
-        PositiveIntegerField max_attempts
-        DateTimeField used_at
-        DateTimeField last_sent_at
     }
     cumplimiento {
         BigAutoField id PK
@@ -226,6 +218,7 @@ erDiagram
         CharField scope
         CharField status
         BooleanField is_system
+        OneToOneField group FK
     }
     rol_permiso {
         BigAutoField id PK
@@ -254,12 +247,12 @@ erDiagram
     funcionario ||--o{ derivacion_tarea : original_employee
     funcionario ||--o{ derivacion_tarea : reassigned_employee
     auth_user ||--o{ portal_audit_log : user
-    auth_user ||--o{ portal_password_reset_code : user
     meta ||--o{ cumplimiento : goal
     tipo_atencion ||--o{ sub_atencion : attention_type
     periodo ||--o{ meta : period
     delegacion ||--o{ meta : delegation
     meta ||--o{ item_medicion : goal
+    rol ||--|| auth_group : group
     rol ||--o{ rol_permiso : role
 ```
 
@@ -317,6 +310,8 @@ Atención.
 | description | TextField | no | no |  | Descripción |
 | responsible | ForeignKey | no | no | auth_user RESTRICT | Funcionario responsable |
 | status | CharField | no | no |  | Estado |
+| evidence_image | FileField | si | no |  | Imagen de evidencia (máx. 2 MB) |
+| attachment | FileField | si | no |  | Documento de respaldo (máx. 5 MB) |
 
 ### beneficio (operaciones.Benefit)
 
@@ -364,6 +359,7 @@ Evidencia.
 | deleted_at | DateTimeField | si | no |  | Fecha de eliminación |
 | activity | ForeignKey | no | no | actividad CASCADE | Actividad Respaldada |
 | image_url | CharField | no | no |  | URL de Imagen/Archivo |
+| file | FileField | si | no |  | Archivo de evidencia (máx. 5 MB) |
 | is_validated | BooleanField | no | no |  | Validado por Jefatura |
 
 ### vecino (operaciones.Neighbor)
@@ -430,22 +426,6 @@ Registro de auditoría.
 | detail | TextField | no | no |  | Detalle |
 | ip | CharField | no | no |  | IP |
 | created_at | DateTimeField | no | no |  | Fecha de creación |
-
-### portal_password_reset_code (portal.PasswordResetCode)
-
-Código de recuperación.
-
-| Campo | Tipo | Nulo | Unico | FK y on_delete | Descripcion |
-|---|---|---|---|---|---|
-| id | BigAutoField | no | si |  | ID |
-| user | ForeignKey | no | no | auth_user CASCADE | Usuario |
-| code_hash | CharField | no | no |  | Hash del código |
-| created_at | DateTimeField | no | no |  | Fecha de creación |
-| expires_at | DateTimeField | no | no |  | Fecha de expiración |
-| attempts | PositiveIntegerField | no | no |  | Intentos fallidos |
-| max_attempts | PositiveIntegerField | no | no |  | Máximo de intentos |
-| used_at | DateTimeField | si | no |  | Fecha de uso |
-| last_sent_at | DateTimeField | no | no |  | Último envío |
 
 ### cumplimiento (sgr_core.Achievement)
 
@@ -587,6 +567,7 @@ Rol.
 | scope | CharField | no | no |  | Alcance |
 | status | CharField | no | no |  | Estado |
 | is_system | BooleanField | no | no |  | Rol de sistema |
+| group | OneToOneField | si | si | auth_group SET_NULL | Grupo de Django |
 
 ### rol_permiso (sgr_core.RolePermission)
 
