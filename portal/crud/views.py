@@ -319,7 +319,7 @@ class CrudCreateView(CrudFormView):
             object_repr=str(obj), detail=f"Creado por {self.request.user}",
         )
         messages.success(
-            self.request, f"{self.config.singular_label} creada correctamente."
+            self.request, f"{self.config.singular_label}: registro creado correctamente."
         )
         return super().form_valid(form)
 
@@ -392,7 +392,7 @@ class CrudUpdateView(LoginRequiredMixin, ModulePermissionMixin, CrudBaseMixin, F
             object_repr=str(obj), detail=f"Editado por {self.request.user}",
         )
         messages.success(
-            self.request, f"{self.config.singular_label} actualizada correctamente."
+            self.request, f"{self.config.singular_label}: cambios guardados correctamente."
         )
         return redirect(self.get_success_url())
 
@@ -446,7 +446,7 @@ class CrudDeleteView(LoginRequiredMixin, ModulePermissionMixin, CrudBaseMixin, V
             object_repr=str(obj), detail=f"Eliminado por {request.user}",
         )
         messages.success(
-            request, f"{self.config.singular_label} eliminada correctamente."
+            request, f"{self.config.singular_label}: registro eliminado correctamente."
         )
         return redirect(self.config.module_key)
 
