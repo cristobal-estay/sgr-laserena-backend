@@ -152,6 +152,18 @@ class CrudDelegationsTestCase(TestCase):
         self.assertContains(resp, "Ya existe una delegación con este código", status_code=200)
         self.assertFalse(Delegation.alive.filter(name="Otra").exists())
 
+    def test_codigo_de_delegacion_eliminada_explica_el_borrado_logico(self):
+        """El código de una delegación eliminada sigue ocupado y el mensaje lo explica."""
+        self.client.login(username="superadmin", password="Demo2026!")
+        Delegation.objects.filter(pk=self.d4.pk).update(deleted_at=timezone.now())
+        resp = self.client.post(reverse("delegations_new"), {
+            "code": self.d4.code, "name": "Reutilizada", "commune": "La Serena",
+            "address": "", "color": "", "status": "Activa",
+        })
+        self.assertContains(resp, "Ese código pertenece a un registro eliminado", status_code=200)
+        self.assertNotContains(resp, "Ya existe una delegación con este código", status_code=200)
+        self.assertFalse(Delegation.objects.filter(name="Reutilizada").exists())
+
     def test_color_invalido_rechazado(self):
         self.client.login(username="superadmin", password="Demo2026!")
         resp = self.client.post(reverse("delegations_new"), {

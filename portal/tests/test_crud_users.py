@@ -178,6 +178,24 @@ class CrudUsersTestCase(TestCase):
         self.assertFalse(target.user.is_active)
         self.assertTrue(Employee.objects.filter(pk=target.pk).exists())
 
+    def test_rut_y_correo_ocupados(self):
+        """Activo: "ya existe". Eliminado (borrado lógico): explica que sigue en el historial."""
+        self._login("superadmin")
+        resp = self.client.post(reverse("users_new"), self._create_post(rut=self.coordinador.rut))
+        self.assertContains(resp, "Ya existe un funcionario con este RUT.")
+
+        target = make_employee(
+            "temporal", "15.678.432-K", self.d1, self.roles["ROL04"], email="temporal@ejemplo.cl",
+        )
+        self.client.post(reverse("users_delete", args=[target.pk]))
+        resp = self.client.post(reverse("users_new"), self._create_post(
+            rut="15.678.432-K", email="temporal@ejemplo.cl",
+        ))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Ese RUT pertenece a un registro eliminado")
+        self.assertContains(resp, "Ese correo pertenece a un registro eliminado")
+        self.assertEqual(Employee.objects.filter(rut=target.rut).count(), 1)
+
     def test_no_eliminar_propio_usuario(self):
         self._login("superadmin")
         me = Employee.objects.create(

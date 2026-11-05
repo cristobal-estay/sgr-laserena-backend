@@ -35,6 +35,22 @@ HEX_COLOR = RegexValidator(
 )
 
 
+#: Con el borrado lógico el registro eliminado sigue en la tabla (``deleted_at``),
+#: así que su código, RUT o correo siguen ocupados.
+DELETED_IN_USE = "{} pertenece a un registro eliminado, que se conserva en el historial (borrado lógico).{}"
+
+
+def in_use_error(matches, message, value_label, suggestion="", alive=None):
+    """Error para un valor único que ya está usado.
+
+    Si solo lo tienen registros eliminados, lo explica en vez de decir "ya
+    existe", porque ese registro ya no aparece en el listado.
+    """
+    if matches.filter(**(alive or {"deleted_at__isnull": True})).exists():
+        return forms.ValidationError(message)
+    return forms.ValidationError(DELETED_IN_USE.format(value_label, suggestion))
+
+
 class CrudModelForm(forms.ModelForm):
     """Base de los formularios del motor.
 
@@ -118,8 +134,8 @@ class DelegationForm(CrudModelForm):
         if self.instance and self.instance.pk:
             exists = exists.exclude(pk=self.instance.pk)
         if exists.exists():
-            raise forms.ValidationError(
-                "Ya existe una delegación con este código."
+            raise in_use_error(
+                exists, "Ya existe una delegación con este código.", "Ese código", " Usa otro código."
             )
         return code
 
@@ -281,7 +297,7 @@ class RoleForm(CrudModelForm):
         if self.instance and self.instance.pk:
             exists = exists.exclude(pk=self.instance.pk)
         if exists.exists():
-            raise forms.ValidationError("Ya existe un rol con este código.")
+            raise in_use_error(exists, "Ya existe un rol con este código.", "Ese código", " Usa otro código.")
         return code
 
     def clean_name(self):
@@ -575,7 +591,7 @@ class UserForm(CrudModelForm):
         if self.editing:
             exists = exists.exclude(pk=self.instance.pk)
         if exists.exists():
-            raise forms.ValidationError("Ya existe un funcionario con este RUT.")
+            raise in_use_error(exists, "Ya existe un funcionario con este RUT.", "Ese RUT")
         return rut
 
     def clean_email(self):
@@ -586,7 +602,10 @@ class UserForm(CrudModelForm):
         if self.editing:
             exists = exists.exclude(pk=self.instance.user_id)
         if exists.exists():
-            raise forms.ValidationError("Ya existe una cuenta con este correo.")
+            raise in_use_error(
+                exists, "Ya existe una cuenta con este correo.", "Ese correo", " Usa otro correo.",
+                alive={"employee__deleted_at__isnull": True},
+            )
         return email
 
     def clean_role(self):
@@ -804,7 +823,7 @@ class ProjectItemForm(CrudModelForm):
         if self.instance and self.instance.pk:
             exists = exists.exclude(pk=self.instance.pk)
         if exists.exists():
-            raise forms.ValidationError("Ya existe un ítem con este código.")
+            raise in_use_error(exists, "Ya existe un ítem con este código.", "Ese código", " Usa otro código.")
         return code
 
 
@@ -852,7 +871,7 @@ class AttentionTypeForm(CrudModelForm):
         if self.instance and self.instance.pk:
             exists = exists.exclude(pk=self.instance.pk)
         if exists.exists():
-            raise forms.ValidationError("Ya existe un tipo de atención con este código.")
+            raise in_use_error(exists, "Ya existe un tipo de atención con este código.", "Ese código", " Usa otro código.")
         return code
 
 
@@ -916,7 +935,7 @@ class AttentionSubtypeForm(CrudModelForm):
         if self.instance and self.instance.pk:
             exists = exists.exclude(pk=self.instance.pk)
         if exists.exists():
-            raise forms.ValidationError("Ya existe una sub atención con este código.")
+            raise in_use_error(exists, "Ya existe una sub atención con este código.", "Ese código", " Usa otro código.")
         return code
 
 
