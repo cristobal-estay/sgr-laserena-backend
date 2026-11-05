@@ -590,18 +590,21 @@ Restriccion unica: uniq_role_module_action (role, module, action).
 - Tablas en espanol, singular y snake_case (delegacion, funcionario,
   tarea_agenda, item_proyecto, tipo_atencion, sub_atencion, vecino,
   atencion). Excepcion historica: portal conserva `portal_`
-  (portal_password_reset_code, portal_audit_log) porque ya existia con
+  (portal_audit_log) porque ya existia con
   datos; no se renombra.
 - Clases y campos en ingles; verbose_name en espanol (es-cl).
-- Borrado logico con `deleted_at`: `objects` no cambia (no altera Admin);
+- Borrado logico con `deleted_at`: `objects` no cambia;
   el manager adicional `alive` excluye `deleted_at` no nulo.
 - RESTRICT/PROTECT en catalogos y referencias historicas; CASCADE solo en
   detalles internos como RolePermission.
 - CASCADE historicos existentes (no retocados, fuera de alcance):
   cumplimiento.meta, item_medicion.meta, tarea_agenda.meta,
   actividad.tarea_agenda, evidencia.actividad, derivacion_tarea.tarea_agenda,
-  funcionario.usuario, beneficio.funcionario, rol_permiso.rol,
-  portal_password_reset_code.usuario.
+  funcionario.usuario, beneficio.funcionario, rol_permiso.rol.
+- portal_password_reset_code se elimino en la Evaluacion 3: la
+  recuperacion usa un token firmado de Django (sin tabla).
+- Grupos y permisos: rol.group -> auth_group (un grupo por rol);
+  auth_group_permissions guarda la matriz y auth_user_groups al usuario.
 - Auditoria: portal_audit_log registra 403 y acciones relevantes.
 - Unicidades sin distinguir mayusculas se validan en formularios y con
   collation utf8mb4 en MariaDB; sin restricciones con funciones.
