@@ -205,7 +205,7 @@ class CrudUsersTestCase(TestCase):
         sheet = load_workbook(filename=io.BytesIO(resp.content)).active
         headers = [cell.value for cell in sheet[1]]
         self.assertEqual(
-            headers, ["RUT", "Nombre", "Correo", "Rol", "Delegaciones", "Estado"]
+            headers, ["RUT", "Nombre", "Correo", "Rol", "Delegaciones", "Estado", "Grupo de Django"]
         )
         self.assertEqual(sheet.max_row - 1, Employee.alive.count())
         texts = [str(cell.value or "") for row in sheet.iter_rows(min_row=2) for cell in row]

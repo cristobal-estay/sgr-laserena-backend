@@ -119,6 +119,12 @@ class Employee(BaseModel):
         return self.role.code if self.role_id else ""
 
     @property
+    def group_label(self):
+        """Grupos de Django del usuario (el del rol se asigna solo)."""
+        names = sorted(self.user.groups.values_list("name", flat=True))
+        return ", ".join(names) if names else "—"
+
+    @property
     def delegations(self):
         """Delegaciones del funcionario para las insignias del listado.
 

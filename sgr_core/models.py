@@ -61,6 +61,12 @@ class Role(BaseModel):
     scope = models.CharField(max_length=20, choices=SCOPES, default="own_records", verbose_name="Alcance")
     status = models.CharField(max_length=10, choices=ROLE_STATUS_CHOICES, default="Activo", verbose_name="Estado")
     is_system = models.BooleanField(default=False, verbose_name="Rol de sistema")
+    #: Grupo de Django del rol (Evaluación 3): recibe los permisos de la
+    #: matriz y agrupa a los usuarios con este rol. Ver ``sgr_core.groups``.
+    group = models.OneToOneField(
+        "auth.Group", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="sgr_role", verbose_name="Grupo de Django",
+    )
 
     class Meta:
         verbose_name = "Rol"
@@ -91,6 +97,11 @@ class Role(BaseModel):
     @property
     def is_active(self):
         return self.status == "Activo"
+
+    @property
+    def group_label(self):
+        """Nombre del grupo de Django del rol (columna del listado)."""
+        return self.group.name if self.group_id else "—"
 
 class RolePermission(BaseModel):
     role = models.ForeignKey(Role, on_delete=models.CASCADE, related_name="permissions", verbose_name="Rol")

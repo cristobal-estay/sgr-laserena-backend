@@ -43,6 +43,7 @@ ROLES_MODULE = ModuleConfig(
         ColumnSpec("scope_label", "Alcance"),
         ColumnSpec("enabled_modules_count", "Módulos habilitados"),
         ColumnSpec("status", "Estado", cell=CELL_STATUS),
+        ColumnSpec("group_label", "Grupo de Django"),
     ),
     search_fields=("code", "name", "scope"),
     status_field="status",

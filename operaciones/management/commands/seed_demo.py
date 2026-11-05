@@ -529,6 +529,15 @@ class Command(BaseCommand):
                 created_at = base_now - timedelta(days=(i % 10), hours=i)
                 Attention.objects.filter(pk=attention.pk).update(created_at=created_at)
 
+        # Evaluación 3: los superusuarios (sin Employee) también quedan en el
+        # grupo de Django del Superadministrador, para mostrarlo en el listado.
+        from django.contrib.auth.models import User as AuthUser
+        from sgr_core.groups import sync_user_groups
+
+        rol_super = Role.objects.filter(code="ROL01").first()
+        for superuser in AuthUser.objects.filter(is_superuser=True, employee__isnull=True):
+            sync_user_groups(superuser, rol_super)
+
         self.stdout.write(self.style.SUCCESS("Datos de demostración cargados."))
         self.stdout.write(f"  Administrador:  {ADMIN_USER} / {DEMO_PASSWORD}")
         self.stdout.write(f"  Usuario limitado (delegación Centro): {LIMITED_USER} / {DEMO_PASSWORD}")

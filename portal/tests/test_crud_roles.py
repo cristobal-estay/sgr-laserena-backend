@@ -310,7 +310,7 @@ class CrudRolesTestCase(TestCase):
         sheet = workbook.active
         headers = [cell.value for cell in sheet[1]]
         self.assertEqual(
-            headers, ["Código", "Rol", "Alcance", "Módulos habilitados", "Estado"]
+            headers, ["Código", "Rol", "Alcance", "Módulos habilitados", "Estado", "Grupo de Django"]
         )
         # Nunca columnas no configuradas (la descripción no se exporta).
         self.assertNotIn("Descripción", headers)

@@ -523,7 +523,9 @@ class AccessDeniedAuditTests(AccessFixtureMixin, TestCase):
         user = User.objects.get(username='coordinador')
         request = RequestFactory().get('/')
         request.user = user
-        with self.assertNumQueries(3):
+        # employee + rol + permisos de Django (directos del usuario y de sus
+        # grupos): 4 consultas, una sola vez por request.
+        with self.assertNumQueries(4):
             first = get_access(request)
         with self.assertNumQueries(0):
             second = get_access(request)
@@ -535,7 +537,7 @@ class AccessDeniedAuditTests(AccessFixtureMixin, TestCase):
         # employee/role en cache del ORM y solo haría 1 consulta.
         otra = RequestFactory().get('/')
         otra.user = User.objects.get(username='coordinador')
-        with self.assertNumQueries(3):
+        with self.assertNumQueries(4):
             tercero = get_access(otra)
         self.assertIsNot(first, tercero)
 

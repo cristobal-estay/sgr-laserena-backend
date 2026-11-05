@@ -79,6 +79,7 @@ USERS_MODULE = ModuleConfig(
         ColumnSpec("role_code", "Rol"),
         ColumnSpec("delegations", "Delegaciones", cell=CELL_DELEGATION),
         ColumnSpec("status_label", "Estado", cell=CELL_STATUS),
+        ColumnSpec("group_label", "Grupo de Django"),
     ),
     search_fields=(
         "rut", "user__first_name", "user__last_name", "user__email",

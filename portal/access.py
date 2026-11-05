@@ -13,6 +13,13 @@ Todas las decisiones de "quién puede ver o hacer qué" se resuelven aquí:
 
 Los permisos se resuelven UNA vez por request (cache en la request misma,
 nunca a nivel de proceso) para no consultar de más.
+
+Evaluación 3: los permisos se leen desde el **sistema de permisos y grupos de
+Django**. Cada rol tiene un ``auth.Group`` con un ``auth.Permission`` por cada
+casilla de su matriz (``sgr_core.<accion>_<modulo>``) y el usuario pertenece
+al grupo de su rol (ver ``sgr_core.groups``). Aquí se consulta con
+``user.has_perm`` / ``user.get_all_permissions``; el rol solo aporta el
+alcance de datos (delegaciones) y si está Activo.
 """
 from dataclasses import dataclass
 from functools import wraps
@@ -20,7 +27,8 @@ from functools import wraps
 from django.contrib.auth import get_user_model
 from django.core.exceptions import PermissionDenied
 
-from sgr_core.models import Delegation, Role, RolePermission
+from sgr_core.groups import CODENAME_TO_PAIR, PERMISSION_APP_LABEL, permission_string
+from sgr_core.models import Delegation, Role
 from sgr_core.roles import SCOPE_RANKS
 
 from .audit import audit
@@ -76,15 +84,27 @@ def get_role(user):
 
 
 def has_permission(user, module, action):
-    """True si el usuario tiene el permiso (módulo, acción)."""
+    """True si el usuario tiene el permiso (módulo, acción).
+
+    Exige un rol Activo y luego pregunta a Django: ``user.has_perm``
+    (permisos del grupo del rol y permisos directos del usuario).
+    """
     role = get_role(user)
     if role is None:
         return False
     if role.is_virtual:
         return True
-    return RolePermission.objects.filter(
-        role_id=role.pk, module=module, action=action,
-    ).exists()
+    return user.has_perm(permission_string(module, action))
+
+
+def module_permissions(user):
+    """Pares ``(módulo, acción)`` que Django le concede al usuario."""
+    pairs = set()
+    for perm in user.get_all_permissions():
+        app_label, _, codename = perm.partition('.')
+        if app_label == PERMISSION_APP_LABEL and codename in CODENAME_TO_PAIR:
+            pairs.add(CODENAME_TO_PAIR[codename])
+    return frozenset(pairs)
 
 
 def allowed_delegations(user):
@@ -235,10 +255,8 @@ class AccessInfo:
         elif self.role.is_virtual:
             self.permissions = None  # todos los permisos
         else:
-            self.permissions = frozenset(
-                RolePermission.objects.filter(role_id=self.role.pk)
-                .values_list('module', 'action')
-            )
+            # Permisos de Django (grupo del rol + directos), una vez por request.
+            self.permissions = module_permissions(user)
 
     def can(self, module, action):
         if self.role is None:

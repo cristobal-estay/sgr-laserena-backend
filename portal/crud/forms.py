@@ -423,7 +423,7 @@ class UserForm(CrudModelForm):
             "rut": "RUT del funcionario, por ejemplo 12.345.678-5. Debe ser único.",
             "phone": "Teléfono de contacto (opcional).",
             "address": "Dirección o referencia (opcional).",
-            "role": "Solo se pueden asignar roles de menor alcance que el tuyo.",
+            "role": "Solo se pueden asignar roles de menor alcance que el tuyo. Al guardar, el usuario queda en el grupo de Django de ese rol.",
         }
         widgets = {
             "rut": forms.TextInput(
