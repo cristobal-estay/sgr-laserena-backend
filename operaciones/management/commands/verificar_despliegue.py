@@ -7,7 +7,7 @@ Uso:
 Revisa que todo lo que se muestra en la revisión esté listo: base de datos
 (MariaDB en la EC2), migraciones, configuración de producción, grupos y
 permisos de Django por rol, Django Admin desactivado, correo para la
-recuperación de contraseña y archivos estáticos (Bootstrap). Con --correo
+recuperación de contraseña y archivos estáticos (Bootstrap y SweetAlert2). Con --correo
 envía un correo de prueba para confirmar que Gmail funciona.
 
 Termina con código 1 si encuentra algún error (✗); las advertencias (!) no
@@ -154,11 +154,17 @@ class Command(BaseCommand):
         self.line(OK, f"El enlace de recuperación vence en {minutes} minutos")
 
     def check_static(self):
-        self.stdout.write("Archivos estáticos (Bootstrap y estilos)")
+        self.stdout.write("Archivos estáticos (Bootstrap, SweetAlert2 y estilos)")
         if finders.find("portal/vendor/bootstrap/bootstrap.min.css"):
             self.line(OK, "Bootstrap 5 incluido en el proyecto")
         else:
             self.line(FAIL, "No se encuentra Bootstrap en static/portal/vendor/bootstrap")
+        # Las alertas (confirmar Salir/Eliminar y mensajes) usan SweetAlert2: va
+        # dentro del proyecto para no depender de un CDN durante la revisión.
+        if finders.find("portal/vendor/sweetalert2/sweetalert2.all.min.js"):
+            self.line(OK, "SweetAlert2 incluido en el proyecto (sin CDN)")
+        else:
+            self.line(FAIL, "No se encuentra SweetAlert2 en static/portal/vendor/sweetalert2")
         manifest_storage = getattr(staticfiles_storage, "manifest_storage", None)
         manifest_name = getattr(staticfiles_storage, "manifest_name", None)
         if manifest_storage is not None and manifest_name:

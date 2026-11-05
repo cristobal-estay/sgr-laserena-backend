@@ -32,6 +32,7 @@ class VerificarDespliegueTests(TestCase):
         self.assertIn("Cada usuario está en el grupo de su rol", salida)
         self.assertIn("Django Admin desactivado", salida)
         self.assertIn("Bootstrap 5 incluido en el proyecto", salida)
+        self.assertIn("SweetAlert2 incluido en el proyecto (sin CDN)", salida)
         self.assertIn("Todo listo para la revisión.", salida)
 
     def test_correo_de_prueba(self):

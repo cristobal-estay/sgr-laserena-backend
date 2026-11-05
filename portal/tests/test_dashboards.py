@@ -8,6 +8,8 @@
   críticas.
 """
 
+import re
+
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
@@ -66,6 +68,18 @@ class DashboardsTestCase(TestCase):
         self.client.logout()
         login = self.client.get(reverse("password_reset_request"))
         self.assertContains(login, "portal/vendor/bootstrap/bootstrap.min.css")
+
+    def test_librerias_locales_sin_cdn(self):
+        """Bootstrap y SweetAlert2 van dentro del proyecto: ninguna página depende
+        de un CDN (si no cargara, Salir y Eliminar dejarían de funcionar)."""
+        externo = re.compile(r'<(?:script|link)\b[^>]*\b(?:src|href)="(?:https?:)?//', re.I)
+        panel = self._get("funcionario")
+        self.client.logout()
+        login = self.client.get(reverse("login"))
+        for resp in (panel, login):
+            html = resp.content.decode()
+            self.assertIn("portal/vendor/sweetalert2/sweetalert2.all.min.js", html)
+            self.assertIsNone(externo.search(html), externo.search(html) and externo.search(html).group(0))
 
     def test_dashboard_administrador(self):
         resp = self._get("superadmin")
