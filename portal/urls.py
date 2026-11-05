@@ -8,9 +8,11 @@ from .views import (
     PortalLoginView,
     PortalLogoutView,
     PasswordResetRequestView,
-    PasswordResetVerifyView,
+    PasswordResetSentView,
     PasswordResetResendView,
+    PasswordResetLinkView,
     PasswordResetConfirmView,
+    PasswordResetCompleteView,
 )
 
 
@@ -35,10 +37,13 @@ urlpatterns = [
     path('inicio/', HomeView.as_view(), name='home'),
     path('delegacion-activa/', SwitchDelegationView.as_view(), name='switch_delegation'),
     path('dashboard/', RedirectView.as_view(pattern_name='home', permanent=False), name='dashboard'),
+    # Recuperación de contraseña con enlace + token seguro (Evaluación 3).
     path('recuperar/', PasswordResetRequestView.as_view(), name='password_reset_request'),
-    path('recuperar/verificar/', PasswordResetVerifyView.as_view(), name='password_reset_verify'),
+    path('recuperar/enviado/', PasswordResetSentView.as_view(), name='password_reset_sent'),
     path('recuperar/reenviar/', PasswordResetResendView.as_view(), name='password_reset_resend'),
+    path('recuperar/enlace/<uidb64>/<token>/', PasswordResetLinkView.as_view(), name='password_reset_link'),
     path('recuperar/nueva-clave/', PasswordResetConfirmView.as_view(), name='password_reset_confirm'),
+    path('recuperar/listo/', PasswordResetCompleteView.as_view(), name='password_reset_complete'),
     # Motor de mantenedores (delegaciones por ahora; Partes 5 a 7 lo usan).
     path('', include('portal.crud.urls')),
 ]

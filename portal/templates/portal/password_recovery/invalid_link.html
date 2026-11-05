@@ -1,0 +1,9 @@
+{% extends 'portal/base_auth.html' %}
+{% block title %}Enlace no válido{% endblock %}
+{% block content %}
+<p class="auth-sub">Gestión de Atención Ciudadana</p>
+<h1 class="auth-title">Enlace no válido o vencido</h1>
+<p class="auth-lead">El enlace de recuperación no es válido, ya se usó o venció. Por seguridad, cada enlace sirve una sola vez y por tiempo limitado.</p>
+<a class="btn primary block" href="{% url 'password_reset_request' %}" id="newLink">Solicitar un nuevo enlace</a>
+<p class="auth-links"><a href="{% url 'login' %}">Volver al inicio de sesión</a></p>
+{% endblock %}

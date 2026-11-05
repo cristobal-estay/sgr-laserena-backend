@@ -3,7 +3,8 @@
 {% block content %}
 <p class="auth-sub">Gestión de Atención Ciudadana</p>
 <h1 class="auth-title">Crear nueva contraseña</h1>
-<p class="stepline">Paso 3 de 3 | Nueva clave</p>
+<p class="stepline">Paso 3 de 4 | Nueva clave</p>
+{% if email %}<p class="auth-subtle">Cuenta: <strong>{{ email }}</strong></p>{% endif %}
 <p class="auth-lead">Elige una contraseña segura para tu cuenta.</p>
 
 <form method="post" novalidate id="newPwForm">

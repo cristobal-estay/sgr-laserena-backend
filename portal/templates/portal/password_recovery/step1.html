@@ -3,8 +3,8 @@
 {% block content %}
 <p class="auth-sub">Gestión de Atención Ciudadana</p>
 <h1 class="auth-title">Recuperar contraseña</h1>
-<p class="stepline">Paso 1 de 3 | Solicitar código</p>
-<p class="auth-lead">Ingresa el correo asociado a tu cuenta.</p>
+<p class="stepline">Paso 1 de 4 | Solicitar enlace</p>
+<p class="auth-lead">Ingresa el correo asociado a tu cuenta. Te enviaremos un enlace seguro para crear una nueva contraseña.</p>
 
 <form method="post" novalidate id="recoverForm">
   {% csrf_token %}
@@ -19,7 +19,7 @@
     </div>
   </div>
 
-  <button class="btn primary block" type="submit" id="sendBtn">Enviar código</button>
+  <button class="btn primary block" type="submit" id="sendBtn">Enviar enlace</button>
 </form>
 
 <p class="auth-subtle">Si la cuenta existe, recibirás instrucciones.</p>

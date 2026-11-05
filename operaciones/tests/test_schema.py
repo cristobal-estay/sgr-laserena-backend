@@ -9,7 +9,7 @@ from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from operaciones.models import Attention, Employee, Neighbor
-from portal.models import AuditLog, PasswordResetCode
+from portal.models import AuditLog
 from portal.tests.utils import TEST_STORAGES
 from sgr_core.models import AttentionSubtype, AttentionType, Delegation, Role
 
@@ -120,10 +120,8 @@ class AttentionSchemaTests(TestCase):
 
     def test_indices_portal(self):
         idx = {i.name for i in AuditLog._meta.indexes}
-        idx |= {i.name for i in PasswordResetCode._meta.indexes}
         self.assertIn("idx_auditoria_fecha", idx)
         self.assertIn("idx_auditoria_user_fecha", idx)
-        self.assertIn("idx_codigo_recup_user_exp", idx)
 
     def test_sin_cambios_pendientes(self):
         call_command("makemigrations", check=True, dry_run=True, verbosity=0)

@@ -1,108 +1,128 @@
 import logging
-import secrets
-import time
-from datetime import timedelta
 
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import login as auth_login, logout as auth_logout
-from django.contrib.auth.hashers import check_password
 from django.contrib.auth.models import User
-from django.contrib.auth.views import LoginView, LogoutView
 from django.contrib.auth.password_validation import validate_password
-from django.contrib.sessions.models import Session
+from django.contrib.auth.tokens import default_token_generator
+from django.contrib.auth.views import LoginView, LogoutView
 from django.core.cache import cache
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.core.mail import EmailMultiAlternatives
 from django.shortcuts import redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
-from django.utils.http import url_has_allowed_host_and_scheme
+from django.utils.encoding import force_bytes, force_str
+from django.utils.http import url_has_allowed_host_and_scheme, urlsafe_base64_decode, urlsafe_base64_encode
 from django.views.generic import TemplateView
-
-from .models import PasswordResetCode
 
 logger = logging.getLogger(__name__)
 
 LOGIN_MAX_ATTEMPTS = 5
 LOGIN_LOCKOUT_WINDOW = 10 * 60
-CODE_EXPIRY_MINUTES = 10
-CODE_RESEND_SECONDS = 45
+#: Espera mínima entre dos envíos del enlace de recuperación (segundos).
+LINK_RESEND_SECONDS = 45
+
+#: Claves de sesión del flujo de recuperación.
+SESSION_EMAIL = 'pr_email'
+SESSION_SENT_AT = 'pr_sent_at'
+SESSION_RESET_UID = 'pr_reset_uid'
+SESSION_RESET_TOKEN = 'pr_reset_token'
+RESET_SESSION_KEYS = (SESSION_EMAIL, SESSION_SENT_AT, SESSION_RESET_UID, SESSION_RESET_TOKEN)
 
 
 # ============================================================
-# HELPERS DE RECUPERACIÓN DE CONTRASEÑA (compartidos)
+# HELPERS DE RECUPERACIÓN DE CONTRASEÑA (enlace + token)
 # ============================================================
-
-def _find_user(email):
-    """Usuario por correo (sin distinguir mayúsculas) o None."""
-    if not email:
-        return None
-    try:
-        return User.objects.get(email__iexact=email)
-    except User.DoesNotExist:
-        return None
+#
+# Flujo (Evaluación 3):
+#   1. El usuario ingresa su correo (/recuperar/).
+#   2. Si la cuenta existe y está activa, se genera un TOKEN SEGURO con
+#      ``default_token_generator`` de Django (HMAC-SHA256 con SECRET_KEY, que
+#      incluye el id, el hash de la contraseña y el último login: deja de
+#      servir apenas se cambia la clave) y se envía por correo un ENLACE
+#      /recuperar/enlace/<uid>/<token>/.
+#   3. Al abrir el enlace se VALIDA el token (y su vigencia,
+#      PASSWORD_RESET_TIMEOUT). Si es válido se guarda en la sesión y se
+#      redirige a /recuperar/nueva-clave/ (así el token no queda en la URL).
+#   4. El usuario define la nueva contraseña (validadores de Django).
+#   5. Se confirma el cambio (/recuperar/listo/) y se avisa por correo.
+# La respuesta es la misma exista o no la cuenta (no se filtra información).
 
 
 def _find_active_user(email):
     try:
         return User.objects.get(email__iexact=email, is_active=True)
-    except User.DoesNotExist:
+    except (User.DoesNotExist, User.MultipleObjectsReturned):
         return None
 
 
-def _code_ttl_seconds():
-    """Vigencia del código de recuperación en segundos (configurable vía .env)."""
-    return int(getattr(settings, 'PASSWORD_RESET_CODE_TTL', 120))
+def _reset_timeout_minutes():
+    return max(1, round(int(settings.PASSWORD_RESET_TIMEOUT) / 60))
 
 
-def _send_reset_code(user, email):
-    """Crea un código nuevo (invalidando los anteriores) y lo envía por correo.
+def _absolute_url(request, path):
+    """URL absoluta del enlace: SITE_URL (si está definido) o el host actual."""
+    base = getattr(settings, 'SITE_URL', '').rstrip('/')
+    if base:
+        return f'{base}{path}'
+    return request.build_absolute_uri(path)
 
-    El código viaja solo dentro del correo; nunca se guarda en claro.
-    """
-    code = f'{secrets.randbelow(1000000):06d}'
-    expires_at = timezone.now() + timedelta(seconds=_code_ttl_seconds())
-    PasswordResetCode.create_for_user(user, code, expires_at)
 
-    from django.core.mail import send_mail
-    subject = 'Código de recuperación de contraseña - Sistema Municipal'
-    message = render_to_string(
-        'portal/email/password_reset_code.txt',
-        {
-            'code': code,
-            'minutes': max(1, round(_code_ttl_seconds() / 60)),
-            'seconds': _code_ttl_seconds(),
-        },
-    )
+def build_reset_link(request, user):
+    """Genera uid + token seguro y devuelve el enlace absoluto de recuperación."""
+    uid = urlsafe_base64_encode(force_bytes(user.pk))
+    token = default_token_generator.make_token(user)
+    path = reverse('password_reset_link', kwargs={'uidb64': uid, 'token': token})
+    return _absolute_url(request, path)
+
+
+def _send_email(subject, template_base, context, to):
+    """Envía un correo en texto + HTML. Los errores quedan en el log."""
+    text = render_to_string(f'portal/email/{template_base}.txt', context)
+    html = render_to_string(f'portal/email/{template_base}.html', context)
+    message = EmailMultiAlternatives(subject, text, settings.DEFAULT_FROM_EMAIL, [to])
+    message.attach_alternative(html, 'text/html')
     try:
-        send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [email], fail_silently=False)
-    except Exception as e:
-        logger.error(f'Error enviando código de recuperación a {email}: {e}')
+        message.send(fail_silently=False)
+    except Exception as exc:  # noqa: BLE001 (SMTP caído, credenciales, etc.)
+        logger.error('Error enviando correo "%s" a %s: %s', subject, to, exc)
+        return False
+    return True
 
 
-def _touch_sent(request):
-    """Marca en la sesión el momento de envío/reenvío (contadores del paso 2)."""
-    now = timezone.now().timestamp()
-    request.session['pr_sent_at'] = now
-    request.session['pr_exp'] = now + _code_ttl_seconds()
-
-
-def _reset_context(request, email):
-    """Contexto del paso 2: correo enmascarado y contadores calculados en el servidor."""
-    now = timezone.now().timestamp()
-    sent = request.session.get('pr_sent_at', now)
-    exp = request.session.get('pr_exp', now)
-    local, _, domain = (email or '').partition('@')
-    masked_email = (local[0] + '***') if local else '***'
-    if domain:
-        masked_email += '@' + domain
-    return {
-        'email': email,
-        'masked_email': masked_email,
-        'expires_in': max(0, int(exp - now)),
-        'resend_in': max(0, int(CODE_RESEND_SECONDS - (now - sent))),
+def send_reset_link(request, user):
+    """Envía el correo con el enlace de recuperación al usuario."""
+    context = {
+        'user': user,
+        'name': user.get_full_name() or user.username,
+        'reset_link': build_reset_link(request, user),
+        'minutes': _reset_timeout_minutes(),
     }
+    return _send_email(
+        'Recupera tu contraseña - Sistema Municipal', 'password_reset_link', context, user.email,
+    )
+
+
+def _user_from_uid(uidb64):
+    try:
+        pk = force_str(urlsafe_base64_decode(uidb64))
+        return User.objects.get(pk=pk, is_active=True)
+    except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+        return None
+
+
+def _masked(email):
+    local, _, domain = (email or '').partition('@')
+    masked = (local[0] + '***') if local else '***'
+    return f'{masked}@{domain}' if domain else masked
+
+
+def _clear_reset_session(request):
+    for key in RESET_SESSION_KEYS:
+        request.session.pop(key, None)
 
 
 # ============================================================
@@ -202,10 +222,12 @@ class PortalLogoutView(LogoutView):
 
 
 # ============================================================
-# RECUPERACIÓN DE CONTRASEÑA
+# RECUPERACIÓN DE CONTRASEÑA (enlace con token)
 # ============================================================
 
 class PasswordResetRequestView(TemplateView):
+    """Paso 1: solicitar la recuperación con el correo de la cuenta."""
+
     template_name = 'portal/password_recovery/step1.html'
 
     def get(self, request, *args, **kwargs):
@@ -223,126 +245,106 @@ class PasswordResetRequestView(TemplateView):
         if errors:
             return render(request, self.template_name, {'errors': errors, 'email': email})
 
-        # La sesión se marca SIEMPRE, exista o no la cuenta: así el paso 2 se
-        # comporta igual en ambos casos y no se filtra la existencia de la cuenta.
-        request.session['pr_email'] = email
-        request.session['pr_verified'] = False
-        _touch_sent(request)
+        # La sesión se marca SIEMPRE, exista o no la cuenta: el paso 2 se ve
+        # igual en ambos casos y no se filtra la existencia de la cuenta.
+        request.session[SESSION_EMAIL] = email
+        request.session[SESSION_SENT_AT] = timezone.now().timestamp()
 
         user = _find_active_user(email)
         if user is not None:
-            _send_reset_code(user, email)
-        return redirect('password_reset_verify')
+            send_reset_link(request, user)
+        return redirect('password_reset_sent')
 
 
-class PasswordResetVerifyView(TemplateView):
+class PasswordResetSentView(TemplateView):
+    """Paso 2: "Revisa tu correo" (con reenvío limitado en el servidor)."""
+
     template_name = 'portal/password_recovery/step2.html'
 
     def get(self, request, *args, **kwargs):
-        email = request.session.get('pr_email')
+        email = request.session.get(SESSION_EMAIL)
         if not email:
             return redirect('password_reset_request')
-        # Se renderiza igual exista o no la cuenta: sin usuario/código el
-        # contexto muestra el correo enmascarado y contadores neutros.
-        return render(request, self.template_name, _reset_context(request, email))
-
-    def post(self, request, *args, **kwargs):
-        email = request.session.get('pr_email')
-        if not email:
-            return redirect('password_reset_request')
-
-        user = _find_user(email)
-        code_obj = None
-        if user is not None:
-            code_obj = PasswordResetCode.objects.filter(
-                user=user
-            ).order_by('-created_at').first()
-
-        entered = ''.join(d.strip() for d in request.POST.getlist('code_digit') if d.strip())
-
-        # Sin código utilizable (cuenta inexistente o código usado/vencido/sin
-        # intentos): respuesta equivalente para no filtrar información.
-        if (
-            code_obj is None
-            or code_obj.is_used()
-            or code_obj.is_expired()
-            or code_obj.attempts >= code_obj.max_attempts
-        ):
-            messages.error(request, 'El código no es válido o ha vencido. Solicita uno nuevo.')
-            return render(request, self.template_name, _reset_context(request, email))
-
-        if not check_password(entered, code_obj.code_hash):
-            code_obj.attempts += 1
-            code_obj.save(update_fields=['attempts'])
-            if code_obj.attempts >= code_obj.max_attempts:
-                messages.error(request, 'El código no es válido o ha vencido. Solicita uno nuevo.')
-            else:
-                messages.error(request, 'Código incorrecto. Verifica e inténtalo de nuevo.')
-            return render(request, self.template_name, _reset_context(request, email))
-
-        # Código correcto: marcamos la sesión como verificada
-        request.session['pr_email'] = email
-        request.session['pr_verified'] = True
-        request.session['pr_verified_at'] = int(time.time())
-        return redirect('password_reset_confirm')
+        now = timezone.now().timestamp()
+        sent = request.session.get(SESSION_SENT_AT, now)
+        return render(request, self.template_name, {
+            'masked_email': _masked(email),
+            'minutes': _reset_timeout_minutes(),
+            'resend_in': max(0, int(LINK_RESEND_SECONDS - (now - sent))),
+        })
 
 
 class PasswordResetResendView(TemplateView):
-    """Reenvío del código de verificación (paso 2).
+    """Reenvía el enlace (solo POST). Espera mínima de 45 s impuesta en el servidor."""
 
-    La espera mínima de 45 s la impone el servidor usando last_sent_at real
-    del último código. Responde de forma equivalente exista o no la cuenta.
-    """
+    def get(self, request, *args, **kwargs):
+        return redirect('password_reset_sent')
 
     def post(self, request, *args, **kwargs):
-        email = request.session.get('pr_email')
+        email = request.session.get(SESSION_EMAIL)
         if not email:
             return redirect('password_reset_request')
-
-        user = _find_user(email)
-        now = timezone.now()
-
+        now = timezone.now().timestamp()
+        sent = request.session.get(SESSION_SENT_AT, 0)
+        throttle_key = f'sgr_reset_link_{email}'
+        if now - sent < LINK_RESEND_SECONDS or cache.get(throttle_key):
+            messages.error(request, 'Debes esperar unos segundos antes de volver a enviar el enlace.')
+            return redirect('password_reset_sent')
+        cache.set(throttle_key, True, LINK_RESEND_SECONDS)
+        request.session[SESSION_SENT_AT] = now
+        user = _find_active_user(email)
         if user is not None:
-            code = PasswordResetCode.objects.filter(
-                user=user
-            ).order_by('-created_at').first()
-            # Puerta de 45 s impuesta por el servidor.
-            if code is not None and (now - code.last_sent_at).total_seconds() < CODE_RESEND_SECONDS:
-                messages.error(
-                    request,
-                    'Debes esperar unos segundos antes de volver a enviar el código.'
-                )
-                return render(
-                    request,
-                    'portal/password_recovery/step2.html',
-                    _reset_context(request, email),
-                )
-            _send_reset_code(user, email)
+            send_reset_link(request, user)
+        messages.success(request, 'Si el correo está registrado, enviamos un nuevo enlace.')
+        return redirect('password_reset_sent')
 
-        # Reinicia los contadores de la sesión en todos los casos (equivalente).
-        _touch_sent(request)
-        return redirect('password_reset_verify')
+
+class PasswordResetLinkView(TemplateView):
+    """Abre el enlace del correo: valida uid + token y pasa al formulario.
+
+    Igual que la vista de Django, el token se guarda en la sesión y se
+    redirige a una URL sin token, para que no quede en el historial ni se
+    filtre por la cabecera Referer.
+    """
+
+    template_name = 'portal/password_recovery/invalid_link.html'
+
+    def get(self, request, uidb64, token, *args, **kwargs):
+        user = _user_from_uid(uidb64)
+        if user is None or not default_token_generator.check_token(user, token):
+            return render(request, self.template_name, status=200)
+        request.session[SESSION_RESET_UID] = uidb64
+        request.session[SESSION_RESET_TOKEN] = token
+        return redirect('password_reset_confirm')
 
 
 class PasswordResetConfirmView(TemplateView):
+    """Paso 3: definir la nueva contraseña (token revalidado en cada request)."""
+
     template_name = 'portal/password_recovery/step3.html'
 
+    def _user_with_valid_token(self, request):
+        uidb64 = request.session.get(SESSION_RESET_UID)
+        token = request.session.get(SESSION_RESET_TOKEN)
+        if not uidb64 or not token:
+            return None
+        user = _user_from_uid(uidb64)
+        if user is None or not default_token_generator.check_token(user, token):
+            return None
+        return user
+
     def get(self, request, *args, **kwargs):
-        if not self._is_verified(request):
-            return redirect('password_reset_request')
-        email = request.session.get('pr_email', '')
-        return render(request, self.template_name, {'email': email})
+        user = self._user_with_valid_token(request)
+        if user is None:
+            _clear_reset_session(request)
+            return render(request, 'portal/password_recovery/invalid_link.html')
+        return render(request, self.template_name, {'email': user.email})
 
     def post(self, request, *args, **kwargs):
-        if not self._is_verified(request):
-            return redirect('password_reset_request')
-
-        email = request.session.get('pr_email', '')
-        user = _find_user(email)
+        user = self._user_with_valid_token(request)
         if user is None:
-            request.session.pop('pr_email', None)
-            request.session.pop('pr_verified', None)
-            return redirect('password_reset_request')
+            _clear_reset_session(request)
+            return render(request, 'portal/password_recovery/invalid_link.html')
 
         new_password = request.POST.get('new_password', '')
         confirm_password = request.POST.get('confirm_password', '')
@@ -366,29 +368,29 @@ class PasswordResetConfirmView(TemplateView):
             except DjangoValidationError as e:
                 errors['new_password'] = ' '.join(e.messages)
         if errors:
-            return render(request, self.template_name, {'errors': errors, 'email': email})
+            return render(request, self.template_name, {'errors': errors, 'email': user.email})
 
+        # Al cambiar el hash de la contraseña, el token deja de ser válido (un
+        # solo uso) y Django cierra las demás sesiones abiertas del usuario.
         user.set_password(new_password)
         user.save()
-        PasswordResetCode.objects.filter(user=user, used_at__isnull=True).update(used_at=timezone.now())
-
-        for session in Session.objects.filter(expire_date__gt=timezone.now()):
-            data = session.get_decoded()
-            if str(data.get('_auth_user_id', '')) == str(user.id):
-                session.delete()
-
-        for key in ['pr_email', 'pr_verified', 'pr_verified_at', 'pr_sent_at', 'pr_exp']:
-            request.session.pop(key, None)
-
-        messages.success(request, 'Contraseña actualizada correctamente. Inicia sesión con tu nueva contraseña.')
-        return redirect('login')
-
-    def _is_verified(self, request):
-        if not request.session.get('pr_verified'):
-            return False
-        verified_at = request.session.get('pr_verified_at', 0)
-        if int(time.time()) - verified_at > CODE_EXPIRY_MINUTES * 60:
-            return False
-        return True
+        _clear_reset_session(request)
+        _send_email(
+            'Tu contraseña fue actualizada - Sistema Municipal', 'password_changed',
+            {'name': user.get_full_name() or user.username,
+             'login_url': _absolute_url(request, reverse('login'))},
+            user.email,
+        )
+        request.session['pr_done'] = True
+        return redirect('password_reset_complete')
 
 
+class PasswordResetCompleteView(TemplateView):
+    """Paso 4: confirmación del cambio exitoso."""
+
+    template_name = 'portal/password_recovery/step4.html'
+
+    def get(self, request, *args, **kwargs):
+        if not request.session.pop('pr_done', False):
+            return redirect('login')
+        return super().get(request, *args, **kwargs)

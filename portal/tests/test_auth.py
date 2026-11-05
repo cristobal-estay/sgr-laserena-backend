@@ -1,17 +1,16 @@
 
 import re
-from datetime import timedelta
 from unittest import mock
 
-from django.contrib.auth.hashers import check_password
 from django.contrib.auth.models import User
+from django.contrib.auth.tokens import default_token_generator
 from django.core import mail
 from django.core.cache import cache
 from django.test import TestCase, Client, override_settings
 from django.urls import reverse
-from django.utils import timezone
+from django.utils.encoding import force_bytes
+from django.utils.http import urlsafe_base64_encode
 
-from portal.models import PasswordResetCode
 from portal.tests.utils import TEST_STORAGES
 
 
@@ -164,268 +163,192 @@ class LoginTests(TestCase):
     STORAGES=TEST_STORAGES,
 )
 class PasswordRecoveryTests(TestCase):
+    """Recuperación por enlace con token seguro (Evaluación 3).
+
+    Flujo: solicitar con el correo -> correo con enlace -> abrir enlace
+    (valida token) -> nueva contraseña -> confirmación -> login con la nueva.
+    """
+
+    LINK_RE = re.compile(r'https?://[^\s"<]+/recuperar/enlace/[^\s"<]+/')
+
     def setUp(self):
+        cache.clear()
         self.client = Client()
         self.user = User.objects.create_user(
             username='admin_demo',
             email='admin_demo@ejemplo.cl',
-            password='Demo2026!'
+            password='Demo2026!',
+            first_name='Admin',
         )
 
-    def test_recovery_correo_inexistente_misma_respuesta(self):
-        resp = self.client.post(reverse('password_reset_request'), {
-            'email': 'noexiste@ejemplo.cl'
+    def _request(self, email='admin_demo@ejemplo.cl'):
+        return self.client.post(reverse('password_reset_request'), {'email': email})
+
+    def _link_from_mail(self, index=-1):
+        body = mail.outbox[index].body
+        match = self.LINK_RE.search(body)
+        self.assertIsNotNone(match, body)
+        return match.group(0)
+
+    def _path(self, link):
+        return link.split('://', 1)[1].split('/', 1)[1].join(['/', ''])
+
+    def _open_link(self, link):
+        return self.client.get(self._path(link))
+
+    def _set_password(self, password='NuevaClave2026', confirm=None):
+        return self.client.post(reverse('password_reset_confirm'), {
+            'new_password': password,
+            'confirm_password': confirm if confirm is not None else password,
         })
-        self.assertEqual(resp.status_code, 302)
-        self.assertEqual(resp['Location'], reverse('password_reset_verify'))
-        # El paso 2 se renderiza igual (no redirige al paso 1) y no se envía correo.
-        resp2 = self.client.get(reverse('password_reset_verify'))
-        self.assertEqual(resp2.status_code, 200)
+
+    # --- Paso 1 y 2: solicitud y correo -------------------------------------
+
+    def test_correo_inexistente_misma_respuesta_y_sin_correo(self):
+        resp = self._request('noexiste@ejemplo.cl')
+        self.assertRedirects(resp, reverse('password_reset_sent'))
+        resp = self.client.get(reverse('password_reset_sent'))
+        self.assertContains(resp, 'n***@ejemplo.cl')
         self.assertEqual(len(mail.outbox), 0)
-        self.assertIn('n***@ejemplo.cl', resp2.content.decode())
 
-    def test_recovery_codigo_guardado_como_hash(self):
-        self.client.post(reverse('password_reset_request'), {
-            'email': 'admin_demo@ejemplo.cl'
-        })
-        codes = PasswordResetCode.objects.filter(user=self.user)
-        self.assertEqual(codes.count(), 1)
-        # El código se guarda hasheado (verificable), nunca en claro.
-        match = re.search(r'\b\d{6}\b', mail.outbox[0].body)
-        self.assertIsNotNone(match)
-        self.assertTrue(check_password(match.group(), codes.first().code_hash))
+    def test_correo_invalido_muestra_error(self):
+        resp = self._request('sin-arroba')
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Ingresa un correo válido')
 
-    def test_recovery_correo_enviado_con_6_digitos(self):
-        self.client.post(reverse('password_reset_request'), {
-            'email': 'admin_demo@ejemplo.cl'
-        })
+    def test_envia_correo_con_enlace_y_token(self):
+        resp = self._request('ADMIN_DEMO@ejemplo.cl')
+        self.assertRedirects(resp, reverse('password_reset_sent'))
         self.assertEqual(len(mail.outbox), 1)
-        match = re.search(r'\b\d{6}\b', mail.outbox[0].body)
-        self.assertIsNotNone(match)
-        from django.contrib.auth.hashers import check_password
-        code_obj = PasswordResetCode.objects.filter(user=self.user).first()
-        self.assertTrue(check_password(match.group(), code_obj.code_hash))
+        message = mail.outbox[0]
+        self.assertEqual(message.to, ['admin_demo@ejemplo.cl'])
+        link = self._link_from_mail()
+        uid = urlsafe_base64_encode(force_bytes(self.user.pk))
+        self.assertIn(f'/recuperar/enlace/{uid}/', link)
+        # Versión HTML con el mismo enlace (botón).
+        html, mimetype = message.alternatives[0]
+        self.assertEqual(mimetype, 'text/html')
+        self.assertIn(link, html)
 
-    def test_recovery_codigo_vencido(self):
-        from django.contrib.auth.hashers import make_password
-        expires = timezone.now() - timedelta(minutes=1)
-        PasswordResetCode.objects.create(
-            user=self.user, code_hash=make_password('123456'),
-            expires_at=expires, last_sent_at=timezone.now()
-        )
-        session = self.client.session
-        session['pr_email'] = 'admin_demo@ejemplo.cl'
-        session.save()
-        resp = self.client.post(reverse('password_reset_verify'), {
-            'code_digit': ['1', '2', '3', '4', '5', '6']
-        }, follow=True)
-        messages = [str(m) for m in resp.context['messages']]
-        self.assertIn('El código no es válido o ha vencido. Solicita uno nuevo.', messages)
+    def test_cuenta_inactiva_no_recibe_correo(self):
+        self.user.is_active = False
+        self.user.save()
+        self._request()
+        self.assertEqual(len(mail.outbox), 0)
 
-    def test_recovery_3_intentos_fallidos(self):
-        from django.contrib.auth.hashers import make_password
-        expires = timezone.now() + timedelta(minutes=10)
-        PasswordResetCode.objects.create(
-            user=self.user, code_hash=make_password('123456'),
-            expires_at=expires, last_sent_at=timezone.now()
-        )
-        session = self.client.session
-        session['pr_email'] = 'admin_demo@ejemplo.cl'
-        session.save()
-        for i in range(3):
-            resp = self.client.post(reverse('password_reset_verify'), {
-                'code_digit': ['9', '9', '9', '9', '9', '9']
-            }, follow=True)
-        messages = [str(m) for m in resp.context['messages']]
-        self.assertIn('El código no es válido o ha vencido. Solicita uno nuevo.', messages)
+    @override_settings(SITE_URL='http://sgr.ejemplo.cl')
+    def test_site_url_define_el_dominio_del_enlace(self):
+        self._request()
+        self.assertTrue(self._link_from_mail().startswith('http://sgr.ejemplo.cl/recuperar/enlace/'))
 
-    def _iniciar_flujo(self):
-        """Deja la sesión en el paso 2 con un código recién enviado (vía paso 1)."""
-        resp = self.client.post(reverse('password_reset_request'), {
-            'email': 'admin_demo@ejemplo.cl'
-        })
-        self.assertEqual(resp.status_code, 302)
-        return resp
-
-    def test_recovery_reenvio_antes_de_45s_rechazado(self):
-        self._iniciar_flujo()
-        codos_antes = PasswordResetCode.objects.filter(user=self.user).count()
-        # Reenvío inmediato: el servidor lo rechaza y NO crea un código nuevo.
+    def test_reenvio_antes_de_45s_rechazado_y_despues_ok(self):
+        self._request()
         resp = self.client.post(reverse('password_reset_resend'), follow=True)
-        self.assertEqual(resp.status_code, 200)
-        messages = [str(m) for m in resp.context['messages']]
-        self.assertIn('Debes esperar unos segundos antes de volver a enviar el código.', messages)
-        self.assertEqual(PasswordResetCode.objects.filter(user=self.user).count(), codos_antes)
-        self.assertEqual(len(mail.outbox), 1)  # solo el correo del paso 1
-
-    def test_recovery_reenvio_despues_de_45s_ok(self):
-        self._iniciar_flujo()
-        # Simulamos que ya pasaron más de 45 s del último envío real.
-        PasswordResetCode.objects.filter(user=self.user).update(
-            last_sent_at=timezone.now() - timedelta(seconds=46)
+        self.assertIn(
+            'Debes esperar unos segundos antes de volver a enviar el enlace.',
+            [str(m) for m in resp.context['messages']],
         )
-        resp = self.client.post(reverse('password_reset_resend'))
-        self.assertEqual(resp.status_code, 302)
-        self.assertEqual(resp['Location'], reverse('password_reset_verify'))
-        self.assertEqual(len(mail.outbox), 2)  # paso 1 + reenvío
-        self.assertEqual(PasswordResetCode.objects.filter(user=self.user).count(), 2)
-
-    def test_recovery_nuevo_codigo_invalida_anterior(self):
-        # Códigos deterministas: 123456 en el paso 1 y 654321 en el reenvío.
-        with mock.patch(
-            'portal.views.secrets.randbelow', side_effect=[123456, 654321]
-        ):
-            self._iniciar_flujo()
-            primer_codigo = PasswordResetCode.objects.get(user=self.user)
-            # Simulamos que ya pasaron más de 45 s del último envío real.
-            PasswordResetCode.objects.filter(user=self.user).update(
-                last_sent_at=timezone.now() - timedelta(seconds=46)
-            )
-            resp = self.client.post(reverse('password_reset_resend'))
-
-        self.assertEqual(resp.status_code, 302)
-        self.assertEqual(resp['Location'], reverse('password_reset_verify'))
-        self.assertEqual(len(mail.outbox), 2)  # paso 1 + reenvío
-        self.assertEqual(PasswordResetCode.objects.filter(user=self.user).count(), 2)
-
-        # El reenvío invalida el código anterior: queda marcado como usado.
-        primer_codigo.refresh_from_db()
-        self.assertIsNotNone(primer_codigo.used_at)
-        self.assertTrue(primer_codigo.is_used())
-        self.assertFalse(primer_codigo.is_valid())
-
-        # Solo el código nuevo sigue vigente para el usuario.
-        vigente = PasswordResetCode.objects.filter(
-            user=self.user, used_at__isnull=True
-        ).first()
-        self.assertIsNotNone(vigente)
-        self.assertNotEqual(vigente.pk, primer_codigo.pk)
-        self.assertTrue(vigente.is_valid())
-
-        # Y el código anterior ya no sirve para verificar: el paso 2 lo rechaza
-        # y la sesión no queda verificada.
-        resp = self.client.post(reverse('password_reset_verify'), {
-            'code_digit': ['1', '2', '3', '4', '5', '6']
-        }, follow=True)
-        self.assertEqual(resp.status_code, 200)
-        mensajes = [str(m) for m in resp.context['messages']]
-        self.assertIn('Código incorrecto. Verifica e inténtalo de nuevo.', mensajes)
-        self.assertFalse(self.client.session.get('pr_verified'))
-
-    @override_settings(PASSWORD_RESET_CODE_TTL=120)
-    def test_recovery_expira_segun_password_reset_code_ttl(self):
-        # El código se crea a través del paso 1, con el TTL definido en settings.
-        resp = self.client.post(reverse('password_reset_request'), {
-            'email': 'admin_demo@ejemplo.cl'
-        })
-        self.assertEqual(resp.status_code, 302)
         self.assertEqual(len(mail.outbox), 1)
-        codigo = PasswordResetCode.objects.get(user=self.user)
-        digitos = list(re.search(r'\b\d{6}\b', mail.outbox[0].body).group())
-
-        # La vigencia proviene de PASSWORD_RESET_CODE_TTL: 120 segundos.
-        vigencia = (codigo.expires_at - codigo.created_at).total_seconds()
-        self.assertGreater(vigencia, 110)
-        self.assertLessEqual(vigencia, 120)
-
-        # Simulamos que ya transcurrieron 121 segundos desde su emisión: con
-        # TTL=120 el código quedó vencido hace 1 segundo.
-        PasswordResetCode.objects.filter(user=self.user).update(
-            expires_at=codigo.expires_at - timedelta(seconds=121)
-        )
-        codigo.refresh_from_db()
-        self.assertTrue(codigo.is_expired())
-
-        # /recuperar/verificar/ lo rechaza como vencido.
-        resp = self.client.post(reverse('password_reset_verify'), {
-            'code_digit': digitos
-        }, follow=True)
-        self.assertEqual(resp.status_code, 200)
-        mensajes = [str(m) for m in resp.context['messages']]
-        self.assertIn('El código no es válido o ha vencido. Solicita uno nuevo.', mensajes)
-        self.assertFalse(self.client.session.get('pr_verified'))
-
-    def test_recovery_contrasena_debil_rechazada(self):
+        # Simula que pasaron 60 s desde el último envío.
         session = self.client.session
-        session['pr_email'] = 'admin_demo@ejemplo.cl'
-        session['pr_verified'] = True
-        session['pr_verified_at'] = int(timezone.now().timestamp())
+        session['pr_sent_at'] -= 60
         session.save()
-        resp = self.client.post(reverse('password_reset_confirm'), {
-            'new_password': 'abc',
-            'confirm_password': 'abc'
-        }, follow=True)
+        cache.clear()
+        self.client.post(reverse('password_reset_resend'))
+        self.assertEqual(len(mail.outbox), 2)
+
+    # --- Paso 3: validar token ----------------------------------------------
+
+    def test_enlace_valido_pasa_al_formulario_sin_token_en_la_url(self):
+        self._request()
+        resp = self._open_link(self._link_from_mail())
+        self.assertRedirects(resp, reverse('password_reset_confirm'))
+        resp = self.client.get(reverse('password_reset_confirm'))
+        self.assertContains(resp, 'Crear nueva contraseña')
+        self.assertContains(resp, 'admin_demo@ejemplo.cl')
+
+    def test_token_alterado_es_rechazado(self):
+        self._request()
+        link = self._link_from_mail()
+        resp = self._open_link(link[:-6] + 'xxxxx/')
         self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Enlace no válido o vencido')
+        resp = self.client.get(reverse('password_reset_confirm'))
+        self.assertContains(resp, 'Enlace no válido o vencido')
+
+    def test_uid_inexistente_es_rechazado(self):
+        token = default_token_generator.make_token(self.user)
+        resp = self.client.get(reverse('password_reset_link', args=['OTk5OTk', token]))
+        self.assertContains(resp, 'Enlace no válido o vencido')
+
+    @override_settings(PASSWORD_RESET_TIMEOUT=60)
+    def test_token_vencido_es_rechazado(self):
+        self._request()
+        link = self._link_from_mail()
+        future = default_token_generator._now().timestamp() + 120
+        with mock.patch.object(default_token_generator, '_now') as fake_now:
+            from datetime import datetime
+
+            fake_now.return_value = datetime.fromtimestamp(future)
+            resp = self._open_link(link)
+        self.assertContains(resp, 'Enlace no válido o vencido')
+
+    def test_formulario_sin_enlace_muestra_invalido(self):
+        resp = self.client.get(reverse('password_reset_confirm'))
+        self.assertContains(resp, 'Enlace no válido o vencido')
+        resp = self._set_password()
+        self.assertContains(resp, 'Enlace no válido o vencido')
+
+    # --- Paso 3 y 4: nueva contraseña y confirmación ------------------------
+
+    def test_contrasena_debil_o_distinta_rechazada(self):
+        self._request()
+        self._open_link(self._link_from_mail())
+        resp = self._set_password('corta')
+        self.assertContains(resp, 'al menos 8 caracteres')
+        resp = self._set_password('NuevaClave2026', confirm='OtraClave2026')
+        self.assertContains(resp, 'Las contraseñas no coinciden.')
         self.user.refresh_from_db()
         self.assertTrue(self.user.check_password('Demo2026!'))
 
-    def test_recovery_contrasena_cambiada_y_codigos_invalidados(self):
-        from django.contrib.auth.hashers import make_password
-        expires = timezone.now() + timedelta(minutes=10)
-        PasswordResetCode.objects.create(
-            user=self.user, code_hash=make_password('123456'),
-            expires_at=expires, last_sent_at=timezone.now()
+    def test_flujo_completo_y_login_con_la_nueva_clave(self):
+        # 1. Solicita la recuperación.
+        self._request()
+        # 2. Recibe el correo con el enlace y lo abre (valida el token).
+        link = self._link_from_mail()
+        self._open_link(link)
+        # 3. Define la nueva contraseña.
+        resp = self._set_password()
+        self.assertRedirects(
+            resp, reverse('password_reset_complete'), fetch_redirect_response=False,
         )
-        session = self.client.session
-        session['pr_email'] = 'admin_demo@ejemplo.cl'
-        session['pr_verified'] = True
-        session['pr_verified_at'] = int(timezone.now().timestamp())
-        session.save()
-        resp = self.client.post(reverse('password_reset_confirm'), {
-            'new_password': 'NuevaClave2026!',
-            'confirm_password': 'NuevaClave2026!'
-        })
-        self.assertEqual(resp.status_code, 302)
+        # 4. Confirmación del cambio (pantalla + correo de aviso).
+        resp = self.client.get(reverse('password_reset_complete'))
+        self.assertContains(resp, 'Contraseña actualizada')
+        self.assertEqual(mail.outbox[-1].subject, 'Tu contraseña fue actualizada - Sistema Municipal')
+        # 5. Ingresa con la nueva contraseña (y la antigua ya no sirve).
         self.user.refresh_from_db()
-        self.assertTrue(self.user.check_password('NuevaClave2026!'))
-        for c in PasswordResetCode.objects.filter(user=self.user):
-            self.assertIsNotNone(c.used_at)
-
-    def test_recovery_flujo_completo(self):
-        resp = self.client.post(reverse('password_reset_request'), {
-            'email': 'admin_demo@ejemplo.cl'
-        })
-        self.assertEqual(resp.status_code, 302)
-        match = re.search(r'\b\d{6}\b', mail.outbox[0].body)
-        digits = list(match.group())
-        resp = self.client.post(reverse('password_reset_verify'), {
-            'code_digit': digits
-        })
-        self.assertEqual(resp.status_code, 302)
-        resp = self.client.post(reverse('password_reset_confirm'), {
-            'new_password': 'NuevaClave2026!',
-            'confirm_password': 'NuevaClave2026!'
-        })
-        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(self.user.check_password('NuevaClave2026'))
+        self.assertFalse(self.client.login(username='admin_demo', password='Demo2026!'))
         resp = self.client.post(reverse('login'), {
-            'username': 'admin_demo',
-            'password': 'NuevaClave2026!'
+            'username': 'admin_demo', 'password': 'NuevaClave2026',
         })
         self.assertEqual(resp.status_code, 302)
-        self.assertEqual(resp['Location'], reverse('dashboard'))
 
-    def test_recovery_codigo_usado_no_reutilizable(self):
-        from django.contrib.auth.hashers import make_password
-        expires = timezone.now() + timedelta(minutes=10)
-        PasswordResetCode.objects.create(
-            user=self.user, code_hash=make_password('123456'),
-            expires_at=expires, last_sent_at=timezone.now(), used_at=timezone.now()
-        )
-        session = self.client.session
-        session['pr_email'] = 'admin_demo@ejemplo.cl'
-        session.save()
-        resp = self.client.post(reverse('password_reset_verify'), {
-            'code_digit': ['1', '2', '3', '4', '5', '6']
-        }, follow=True)
-        messages = [str(m) for m in resp.context['messages']]
-        self.assertIn('El código no es válido o ha vencido. Solicita uno nuevo.', messages)
+    def test_enlace_de_un_solo_uso(self):
+        self._request()
+        link = self._link_from_mail()
+        self._open_link(link)
+        self._set_password()
+        # Volver a abrir el mismo enlace ya no sirve: el token cambió con la clave.
+        resp = self._open_link(link)
+        self.assertContains(resp, 'Enlace no válido o vencido')
 
-    def test_recovery_paso3_sin_verificacion_redirige(self):
-        resp = self.client.get(reverse('password_reset_confirm'))
-        self.assertEqual(resp.status_code, 302)
-        self.assertEqual(resp['Location'], reverse('password_reset_request'))
+    def test_confirmacion_sin_cambio_redirige_al_login(self):
+        resp = self.client.get(reverse('password_reset_complete'))
+        self.assertRedirects(resp, reverse('login'))
 
+    def test_usuario_autenticado_no_ve_recuperacion(self):
         self.client.login(username='admin_demo', password='Demo2026!')
-        resp = self.client.get(reverse('login'))
+        resp = self.client.get(reverse('password_reset_request'))
         self.assertEqual(resp.status_code, 302)
-        self.assertEqual(resp['Location'], reverse('dashboard'))

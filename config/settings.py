@@ -145,10 +145,13 @@ AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
 ]
 
-# Recuperación de contraseña: vigencia del código en SEGUNDOS y cantidad máxima
-# de intentos fallidos antes de invalidarlo. Configurables vía .env.
-PASSWORD_RESET_CODE_TTL = int(os.getenv('PASSWORD_RESET_CODE_TTL', '120'))
-PASSWORD_RESET_MAX_ATTEMPTS = int(os.getenv('PASSWORD_RESET_MAX_ATTEMPTS', '5'))
+# Recuperación de contraseña por enlace (Evaluación 3): vigencia del token en
+# SEGUNDOS (por defecto 30 minutos). El token lo genera
+# django.contrib.auth.tokens.default_token_generator.
+PASSWORD_RESET_TIMEOUT = int(os.getenv('PASSWORD_RESET_TIMEOUT', '1800'))
+# URL pública del sitio para armar el enlace del correo (opcional). Si se deja
+# vacía se usa el host de la petición (por ejemplo la IP pública de la EC2).
+SITE_URL = os.getenv('SITE_URL', '')
 
 # --- Seguridad (cabeceras y cookies) -------------------------------------
 # X-Frame-Options lo envía XFrameOptionsMiddleware (DENY por defecto).

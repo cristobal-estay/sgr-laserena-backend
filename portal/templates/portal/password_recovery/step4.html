@@ -1,0 +1,9 @@
+{% extends 'portal/base_auth.html' %}
+{% block title %}Contraseña actualizada{% endblock %}
+{% block content %}
+<p class="auth-sub">Gestión de Atención Ciudadana</p>
+<h1 class="auth-title">Contraseña actualizada</h1>
+<p class="stepline">Paso 4 de 4 | Listo</p>
+<p class="auth-lead">Tu contraseña se cambió correctamente. El enlace que usaste ya no sirve y te enviamos un correo de confirmación.</p>
+<a class="btn primary block" href="{% url 'login' %}" id="goLogin">Iniciar sesión con la nueva contraseña</a>
+{% endblock %}

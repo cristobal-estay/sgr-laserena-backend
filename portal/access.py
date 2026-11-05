@@ -28,7 +28,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import PermissionDenied
 
 from sgr_core.groups import CODENAME_TO_PAIR, PERMISSION_APP_LABEL, permission_string
-from sgr_core.models import Delegation, Role
+from sgr_core.models import Delegation
 from sgr_core.roles import SCOPE_RANKS
 
 from .audit import audit
