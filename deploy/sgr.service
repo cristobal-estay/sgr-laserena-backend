@@ -7,7 +7,9 @@ User=<USUARIO>
 Group=<USUARIO>
 WorkingDirectory=<RUTA_PROYECTO>
 EnvironmentFile=<RUTA_PROYECTO>/.env
-ExecStart=<RUTA_PROYECTO>/venv/bin/gunicorn config.wsgi:application --bind 127.0.0.1:8000 --workers 3
+# Un proceso con 4 hilos: la caché en memoria (bloqueo tras 5 intentos de login
+# y espera para reenviar el enlace) queda compartida entre todas las peticiones.
+ExecStart=<RUTA_PROYECTO>/venv/bin/gunicorn config.wsgi:application --bind 127.0.0.1:8000 --workers 1 --threads 4
 Restart=always
 RestartSec=5
 
