@@ -327,7 +327,7 @@ class Command(BaseCommand):
 
         # --- Derivaciones de tareas (TaskReassignment) ---
         # Repartidas entre 2 delegaciones (Centro y Avenida del Mar) para poder
-        # comprobar el scoping por delegación en el admin.
+        # comprobar el alcance por delegación.
         for titulo, origen, destino, motivo, dias, notas in REASSIGNMENTS:
             TaskReassignment.objects.get_or_create(
                 task=tasks[titulo],
@@ -353,7 +353,8 @@ class Command(BaseCommand):
                 },
             )
 
-        # --- Usuarios del Django Admin (administrador y limitado) ---
+        # --- Usuarios demo históricos (Evaluación 2). Desde la Evaluación 3 no
+        # hay Django Admin: estos usuarios entran solo al portal. ---
         admin_u, _ = User.objects.get_or_create(
             username=ADMIN_USER, defaults={"email": f"{ADMIN_USER}@ejemplo.cl"},
         )

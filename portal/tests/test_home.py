@@ -71,6 +71,13 @@ class HomeTests(TestCase):
         self.client.login(username="coordinador", password="Demo2026!")
         self.assertEqual(self.client.get(reverse("switch_delegation")).status_code, 405)
 
+    def test_django_admin_desactivado(self):
+        # Evaluación 3: no existe /admin/; se responde con la página 404 propia.
+        self.client.login(username="superadmin", password="Demo2026!")
+        resp = self.client.get("/admin/")
+        self.assertEqual(resp.status_code, 404)
+        self.assertEqual(self.client.get("/admin/login/").status_code, 404)
+
     def test_404_propio(self):
         self.client.login(username="superadmin", password="Demo2026!")
         with override_settings(DEBUG=False):

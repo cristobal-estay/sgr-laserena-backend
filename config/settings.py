@@ -20,7 +20,7 @@ DEBUG = os.getenv('DEBUG', 'True') == 'True'
 ALLOWED_HOSTS = [host.strip() for host in os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')]
 
 INSTALLED_APPS = [
-    'django.contrib.admin',
+    # Sin 'django.contrib.admin' (Evaluación 3): toda la gestión es por el portal.
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
